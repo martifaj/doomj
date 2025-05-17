@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Add your project dependencies here
+    // Example: implementation 'com.google.guava:guava:31.0.1-jre'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+application { // Optional: configure if using the application plugin
+    mainClass = 'com.doomengine.game.DoomEngine'
+}
+
+// Disable test tasks for this project
+tasks.withType(Test).configureEach {
+    enabled = false
+}
+
+// Set Java version compatibility
+java {
+    // Use Java toolchains to ensure the correct JDK is used.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+    sourceCompatibility = JavaVersion.VERSION_17 // Adjust Java version as needed
+    targetCompatibility = JavaVersion.VERSION_17 // Adjust Java version as needed
+}
