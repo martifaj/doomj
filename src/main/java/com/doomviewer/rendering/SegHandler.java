@@ -5,18 +5,12 @@ import com.doomviewer.core.math.Vector2D;
 import com.doomviewer.game.Player;
 import com.doomviewer.main.DoomEngine;
 import com.doomviewer.wad.WADData;
-import com.doomviewer.wad.datatypes.Seg;
-import com.doomviewer.wad.datatypes.Sector;
-import com.doomviewer.wad.datatypes.Sidedef;
 import com.doomviewer.wad.datatypes.Linedef;
+import com.doomviewer.wad.datatypes.Sector;
+import com.doomviewer.wad.datatypes.Seg;
+import com.doomviewer.wad.datatypes.Sidedef;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static com.doomviewer.game.BSP.normalizeAngle;
 
@@ -71,7 +65,7 @@ public class SegHandler {
             // Angle of screen column i relative to view center.
             // i=0 (left screen edge), i=WIDTH (right screen edge)
             // H_WIDTH - i: positive for left of center, negative for right.
-            table[i] = Math.toDegrees(Math.atan2((double)Settings.H_WIDTH - i, Settings.SCREEN_DIST));
+            table[i] = Math.toDegrees(Math.atan2((double) Settings.H_WIDTH - i, Settings.SCREEN_DIST));
         }
         return table;
     }
@@ -122,7 +116,9 @@ public class SegHandler {
         // Original addSegmentToFov might return x1 > x2 if original angle1 > angle2.
         // The rendering loops (drawSolidWallRange etc.) expect x_start < x_end.
         if (x1 > x2) {
-            int temp = x1; x1 = x2; x2 = temp;
+            int temp = x1;
+            x1 = x2;
+            x2 = temp;
         }
 
         // Clip to screen bounds
@@ -137,29 +133,7 @@ public class SegHandler {
         if (backSector == null) { // Solid wall
             clipSolidWalls(x1, x2); // x2 is exclusive here
         } else { // Portal wall
-            if (frontSector.ceilHeight != backSector.ceilHeight ||
-                    frontSector.floorHeight != backSector.floorHeight ||
-                    // Check if textures or light levels differ, requiring portal rendering logic
-                    !frontSector.ceilTexture.equals(backSector.ceilTexture) ||
-                    !frontSector.floorTexture.equals(backSector.floorTexture) ||
-                    frontSector.lightLevel != backSector.lightLevel ||
-                    (seg.linedef != null && seg.linedef.frontSidedef != null && !"-".equals(seg.linedef.frontSidedef.middleTexture)) // Middle texture on 2-sided line
-            ) {
-                // Check for "empty" lines used for triggers.
-                boolean isEmptyLine = backSector.ceilTexture.equals(frontSector.ceilTexture) &&
-                        backSector.floorTexture.equals(frontSector.floorTexture) &&
-                        backSector.lightLevel == frontSector.lightLevel &&
-                        seg.linedef != null && seg.linedef.frontSidedef != null &&
-                        "-".equals(seg.linedef.frontSidedef.middleTexture);
-                if (isEmptyLine) {
-                    // Do nothing, pass through
-                } else {
-                    clipPortalWalls(x1, x2); // x2 is exclusive
-                }
-            } else {
-                // Effectively transparent two-sided line: treat as portal to render back sector
-                clipPortalWalls(x1, x2);
-            }
+            clipPortalWalls(x1, x2); // x2 is exclusive
         }
     }
 
@@ -246,7 +220,7 @@ public class SegHandler {
 
             if (bDrawWall) {
                 int wy1 = Math.max(drawWallY1, curUpperClip + 1);
-                int wy2 = Math.min(drawWallY2 -1 , curLowerClip - 1); // -1 from drawWallY2 because it's top of floor.
+                int wy2 = Math.min(drawWallY2 - 1, curLowerClip - 1); // -1 from drawWallY2 because it's top of floor.
                 // Python used draw_wall_y2 which was inclusive.
 
                 if (wy1 <= wy2) {
@@ -254,7 +228,7 @@ public class SegHandler {
                     double textureColumn = rwDistance * Math.tan(Math.toRadians(angle)) - rwOffset;
                     double invScale = 1.0 / rwScale1;
 
-                    renderer.drawWallColumn(framebuffer, wallTexture, textureColumn, x, wy1, wy2,
+                    ViewRenderer.drawWallColumn(framebuffer, wallTexture, textureColumn, x, wy1, wy2,
                             middleTexAlt, invScale, lightLevel);
                 }
             }
@@ -413,7 +387,7 @@ public class SegHandler {
             if (bDrawUpperWall) {
                 // Upper wall is between front ceiling and back ceiling
                 int wy1 = Math.max(drawWallY1, curUpperClip + 1);      // Top is front ceil
-                int wy2 = Math.min(drawPortalY1 -1, curLowerClip - 1); // Bottom is back ceil
+                int wy2 = Math.min(drawPortalY1 - 1, curLowerClip - 1); // Bottom is back ceil
                 if (wy1 <= wy2) {
                     ViewRenderer.drawWallColumn(framebuffer, upperTexture, textureColumn, x, wy1, wy2, upperTexAlt, invScale, light);
                     curUpperClip = Math.max(curUpperClip, wy2);
@@ -422,7 +396,7 @@ public class SegHandler {
 
             // Update overall screen clip based on portal opening (back sector)
             // These become the new clip bounds for things behind this portal
-            upperClip[x] = Math.max(curUpperClip, Math.max(drawWallY1, drawPortalY1 -1)); // Portal top clip
+            upperClip[x] = Math.max(curUpperClip, Math.max(drawWallY1, drawPortalY1 - 1)); // Portal top clip
             // Python uses complex logic here based on wy2 for upperclip[x] = wy2
 
             if (bDrawFloor) {
@@ -438,9 +412,9 @@ public class SegHandler {
             if (bDrawLowerWall) {
                 // Lower wall is between back floor and front floor
                 int wy1 = Math.max(drawPortalY2, curUpperClip + 1);    // Top is back floor
-                int wy2 = Math.min(drawWallY2 -1, curLowerClip - 1);  // Bottom is front floor
+                int wy2 = Math.min(drawWallY2 - 1, curLowerClip - 1);  // Bottom is front floor
                 if (wy1 <= wy2) {
-                    renderer.drawWallColumn(framebuffer, lowerTexture, textureColumn, x, wy1, wy2, lowerTexAlt, invScale, light);
+                    ViewRenderer.drawWallColumn(framebuffer, lowerTexture, textureColumn, x, wy1, wy2, lowerTexAlt, invScale, light);
                     curLowerClip = Math.min(curLowerClip, wy1);
                 }
             }
@@ -471,9 +445,14 @@ public class SegHandler {
 
 
             rwScale1 += rwScaleStep;
-            wallY1 += wallY1Step; wallY2 += wallY2Step;
-            if (bDrawUpperWall || bDrawCeil) { portalY1 += portalY1Step; }
-            if (bDrawLowerWall || bDrawFloor) { portalY2 += portalY2Step; }
+            wallY1 += wallY1Step;
+            wallY2 += wallY2Step;
+            if (bDrawUpperWall || bDrawCeil) {
+                portalY1 += portalY1Step;
+            }
+            if (bDrawLowerWall || bDrawFloor) {
+                portalY2 += portalY2Step;
+            }
         }
     }
 

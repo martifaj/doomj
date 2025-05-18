@@ -133,10 +133,6 @@ public class BSP {
 
         double rwAngle1 = angle1; // Store raw world angle for later use by SegHandler
 
-        // Angles relative to player's current view direction
-        double relAngle1 = normalizeAngle(angle1 - player.angle);
-        double relAngle2 = normalizeAngle(angle2 - player.angle);
-
         // Clip to FOV
         // H_FOV is positive. View is [player.angle - H_FOV, player.angle + H_FOV]
         // Or, relative angles: [-H_FOV, H_FOV]
