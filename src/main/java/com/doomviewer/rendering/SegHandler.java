@@ -168,11 +168,21 @@ public class SegHandler {
         double rwScale1 = scaleFromGlobalAngle(x1, rwNormalAngle, rwDistance);
 
         // Fix for stretched line bug if wall is ~perpendicular to view at start point
-        // Python: if math.isclose(offset_angle % 360, 90, abs_tol=1): rw_scale1 *= 0.01
+        // Python: if math.isclose(offset_angle % 360, 90, abs_tol=1): rw_scale1 *= 0.01         
         // This check is if (player_pos - seg.start_vertex) is almost parallel to wall normal.
         // A small factor might be too aggressive. Let's clamp scale instead.
         // rwScale1 = Math.max(MIN_SCALE, Math.min(MAX_SCALE, rwScale1)); (already done in scaleFromGlobalAngle)
 
+        // Add Python's fix for stretched line bug for solid walls
+        // Python: if math.isclose(offset_angle % 360, 90, abs_tol=1): rw_scale1 *= 0.01
+        // offset_angle is rwNormalAngle - this.rwAngle1
+        // Python's (angle % 360) ensures a positive angle range.
+        double positiveOffsetAngle = (offsetAngle % 360.0 + 360.0) % 360.0;
+        if (Math.abs(positiveOffsetAngle - 90.0) < 1.0) { // Corresponds to math.isclose(..., 90, abs_tol=1)
+             rwScale1 *= 0.01;
+        }
+        // rwScale1 is already clamped in scaleFromGlobalAngle. Applying this factor might take it outside MIN_SCALE / MAX_SCALE.
+        // For true parity, one might re-clamp, but Python doesn't explicitly show re-clamping here.
         double rwScaleStep = 0;
         if (x1 < x2) {
             double scale2 = scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance);
@@ -313,6 +323,7 @@ public class SegHandler {
         int[][] lowerTexture = bDrawLowerWall ? textures.get(lowerWallTexId) : null;
         double upperTexAlt = 0, lowerTexAlt = 0;
 
+        // Upper texture vertical alignment (DONT_PEG_TOP or default)
         if (bDrawUpperWall) {
             if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_TOP")) != 0) {
                 upperTexAlt = worldFrontZ1; // Pegged to front sector's ceiling
@@ -321,12 +332,14 @@ public class SegHandler {
             }
             upperTexAlt += side.yOffset;
         }
+
+        // Lower texture vertical alignment (DONT_PEG_BOTTOM or default)
         if (bDrawLowerWall) {
             if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_BOTTOM")) != 0) {
-                // Pegged to front sector's floor, texture top is at front floor + texture height
-                lowerTexAlt = (frontSector.floorHeight + lowerTexture[0].length) - player.height;
+                // To match Python's (potentially flawed) logic for DONT_PEG_BOTTOM on lower textures:
+                // Python uses world_front_z1, which is (frontSector.ceilHeight - player.height)
+                lowerTexAlt = worldFrontZ1; 
             } else { // Pegged to back sector's floor (default for lower textures)
-                // Texture top is at back sector's floor (world_back_z2)
                 lowerTexAlt = worldBackZ2; // Texture top aligns with the top of the lower step
             }
             lowerTexAlt += side.yOffset;
