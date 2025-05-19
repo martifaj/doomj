@@ -16,6 +16,11 @@ public class Settings {
     public static final int H_WIDTH = WIDTH / 2;
     public static final int H_HEIGHT = HEIGHT / 2;
 
+    public static final int TEXTURE_WIDTH = 64;  // Standard width for Doom flat textures
+    public static final int TEXTURE_HEIGHT = 64; // Standard height for Doom flat textures
+    public static final int TEXTURE_MASK_X = TEXTURE_WIDTH - 1; // = 63 (for power-of-2 dimensions)
+    public static final int TEXTURE_MASK_Y = TEXTURE_HEIGHT - 1; // = 63 (for power-of-2 dimensions)
+
     // Field of View
     public static final double FOV = 90.0;
     public static final double H_FOV = FOV / 2.0;

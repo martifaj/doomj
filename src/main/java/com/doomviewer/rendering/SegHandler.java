@@ -214,7 +214,7 @@ public class SegHandler {
                 int cy1 = curUpperClip + 1;
                 int cy2 = Math.min(drawWallY1 - 1, curLowerClip - 1);
                 if (cy1 <= cy2) {
-                    renderer.drawFlat(framebuffer, ceilTextureId, lightLevel, x, cy1, cy2, worldFrontZ1, xToAngleTable[x]);
+                    renderer.drawFlat(framebuffer, ceilTextureId, lightLevel, x, cy1, cy2, frontSector.ceilHeight, xToAngleTable[x]);
                 }
             }
 
@@ -237,7 +237,7 @@ public class SegHandler {
                 int fy1 = Math.max(drawWallY2, curUpperClip + 1); // drawWallY2 is the floor's top line
                 int fy2 = curLowerClip - 1;
                 if (fy1 <= fy2) {
-                    renderer.drawFlat(framebuffer, floorTextureId, lightLevel, x, fy1, fy2, worldFrontZ2, xToAngleTable[x]);
+                    renderer.drawFlat(framebuffer, floorTextureId, lightLevel, x, fy1, fy2, frontSector.floorHeight, xToAngleTable[x]);
                 }
             }
 
@@ -379,7 +379,7 @@ public class SegHandler {
                 // Draw ceiling from current clip top down to front sector's ceiling OR portal's ceiling, whichever is higher.
                 int cy2 = Math.min(drawWallY1 - 1, curLowerClip - 1);
                 if (cy1 <= cy2) {
-                    renderer.drawFlat(framebuffer, ceilTexId, light, x, cy1, cy2, worldFrontZ1, xToAngleTable[x]);
+                    renderer.drawFlat(framebuffer, ceilTexId, light, x, cy1, cy2, frontSector.ceilHeight, xToAngleTable[x]);
                     curUpperClip = Math.max(curUpperClip, cy2); // Update clip
                 }
             }
@@ -404,7 +404,7 @@ public class SegHandler {
                 int fy1 = Math.max(drawWallY2, curUpperClip + 1);
                 int fy2 = curLowerClip - 1;
                 if (fy1 <= fy2) {
-                    renderer.drawFlat(framebuffer, floorTexId, light, x, fy1, fy2, worldFrontZ2, xToAngleTable[x]);
+                    renderer.drawFlat(framebuffer, floorTexId, light, x, fy1, fy2, frontSector.floorHeight, xToAngleTable[x]);
                     curLowerClip = Math.min(curLowerClip, fy1); // Update clip
                 }
             }

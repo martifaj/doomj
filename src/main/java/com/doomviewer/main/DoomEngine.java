@@ -27,7 +27,7 @@ public class DoomEngine extends JPanel implements Runnable {
     private final InputHandler inputHandler;
 
     private BufferedImage screenImage; // The image we draw the 3D view into
-    private int[] screenPixels;    // Pixel data for screenImage
+    private int[] framebuffer;    // Pixel data for screenImage
 
     private WADData wadData;
     private MapRenderer mapRenderer; // Optional 2D map renderer
@@ -52,7 +52,7 @@ public class DoomEngine extends JPanel implements Runnable {
 
         // Screen image for 3D rendering
         screenImage = new BufferedImage(Settings.WIDTH, Settings.HEIGHT, BufferedImage.TYPE_INT_ARGB);
-        screenPixels = ((DataBufferInt) screenImage.getRaster().getDataBuffer()).getData();
+        framebuffer = ((DataBufferInt) screenImage.getRaster().getDataBuffer()).getData();
 
         addKeyListener(inputHandler);
         addFocusListener(new java.awt.event.FocusAdapter() {
@@ -141,7 +141,7 @@ public class DoomEngine extends JPanel implements Runnable {
 
     private void update() {
         // Clear the 3D framebuffer before rendering the next frame
-        Arrays.fill(screenPixels, 0xFF000000);
+        Arrays.fill(framebuffer, 0xFF000000);
         player.update();
         segHandler.update(); // Must be before BSP to init clip arrays
         bsp.update();        // BSP calls SegHandler.classifySegment which uses ViewRenderer
@@ -216,7 +216,7 @@ public class DoomEngine extends JPanel implements Runnable {
     }
 
     public int[] getFramebuffer() {
-        return screenPixels;
+        return framebuffer;
     }
 
     public double getDeltaTime() {

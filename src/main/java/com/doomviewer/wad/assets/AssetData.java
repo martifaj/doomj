@@ -16,6 +16,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.doomviewer.core.Settings.TEXTURE_HEIGHT;
+import static com.doomviewer.core.Settings.TEXTURE_WIDTH;
+
 
 public class AssetData {
     private WADReader reader;
@@ -392,7 +395,7 @@ public class AssetData {
         }
 
         private int[][] createImage() {
-            BufferedImage surface = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB); // Flats are 64x64
+            BufferedImage surface = new BufferedImage(TEXTURE_WIDTH, TEXTURE_HEIGHT, BufferedImage.TYPE_INT_ARGB); // Flats are 64x64
             for (int i = 0; i < this.flatData.size(); i++) {
                 if (i >= 64 * 64) break; // Safety for malformed flat data
                 int ix = i % 64;

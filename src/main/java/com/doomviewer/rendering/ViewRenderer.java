@@ -5,8 +5,7 @@ import com.doomviewer.game.Player;
 import com.doomviewer.main.DoomEngine;
 import com.doomviewer.wad.assets.AssetData;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.List;
@@ -87,7 +86,7 @@ public class ViewRenderer {
 
         // Texture V (vertical) coordinate calculation
         // tex_y = tex_alt + (float(y1) - H_HEIGHT) * inv_scale
-        double texV = textureAltitude + ((double)y1 - Settings.H_HEIGHT) * invScale;
+        double texV = textureAltitude + ((double) y1 - Settings.H_HEIGHT) * invScale;
 
         for (int y = y1; y <= y2; y++) {
             if (y < 0 || y >= Settings.HEIGHT || x < 0 || x >= Settings.WIDTH) continue;
@@ -98,9 +97,9 @@ public class ViewRenderer {
 
             // Apply light level
             int alpha = (packedARGB >> 24) & 0xFF;
-            int red   = (int)(((packedARGB >> 16) & 0xFF) * lightLevel);
-            int green = (int)(((packedARGB >> 8) & 0xFF) * lightLevel);
-            int blue  = (int)((packedARGB & 0xFF) * lightLevel);
+            int red = (int) (((packedARGB >> 16) & 0xFF) * lightLevel);
+            int green = (int) (((packedARGB >> 8) & 0xFF) * lightLevel);
+            int blue = (int) ((packedARGB & 0xFF) * lightLevel);
 
             // Clamp colors
             red = Math.min(255, Math.max(0, red));
@@ -127,95 +126,121 @@ public class ViewRenderer {
         } else {
             if (!textures.containsKey(textureId)) return;
             int[][] flatTexture = textures.get(textureId); // Flat textures are 64x64
-            drawFlatColumn(framebuffer, flatTexture, x, y1, y2, lightLevel, worldZ,
-                    player.angle, player.pos.x, player.pos.y, screenColumnAngle);
+            drawFlatColumn(framebuffer, flatTexture, x, y1, y2, lightLevel, worldZ, // worldZ is now absolute plane Z
+                    this.player.height, // This is playerEyeZWorld
+                    this.player.angle, this.player.pos.x, this.player.pos.y, screenColumnAngle);
         }
     }
 
 
+    /**
+     * Draws a vertical column of a flat textured surface (floor or ceiling).
+     *
+     * @param framebuffer          The target framebuffer array (ARGB packed integers).
+     * @param flatTexture          The texture for the flat surface (e.g., int[TEXTURE_WIDTH][TEXTURE_HEIGHT] of ARGB).
+     * @param x                    The current screen column to render.
+     * @param y1                   The starting screen row (inclusive) for this column segment.
+     * @param y2                   The ending screen row (inclusive) for this column segment.
+     * @param lightLevel           Light multiplier (0.0 to 1.0).
+     * @param planeZWorld          The Z coordinate of the horizontal plane in world space (e.g., 0.0 for a floor at Z=0).
+     * @param playerEyeZWorld      The Z coordinate of the player's eye in world space (e.g., 0.5 if player eye is 0.5 units above Z=0).
+     * @param playerAngleDeg       Player's view angle in degrees (0 is often positive X-axis, 90 positive Y-axis).
+     * @param playerX              Player's X coordinate in world space.
+     * @param playerY              Player's Y coordinate in world space.
+     * @param screenColumnAngleDeg Angle of the ray for this screen column 'x' relative to the player's
+     *                             forward direction (in degrees). Positive for right, negative for left.
+     *                             This should typically be calculated as:
+     *                             Math.toDegrees(Math.atan2( (x_screen - Settings.H_WIDTH), Settings.PROJECTION_DISTANCE ))
+     */
     public static void drawFlatColumn(int[] framebuffer, int[][] flatTexture,
-                                      int x, int y1, int y2, double lightLevel, double worldZ,
+                                      int x, int y1, int y2, double lightLevel,
+                                      double planeZWorld, double playerEyeZWorld,
                                       double playerAngleDeg, double playerX, double playerY,
-                                      double screenColumnAngleDeg /*This param might not be needed for python's way*/) {
+                                      double screenColumnAngleDeg) {
 
-        double playerAngleRad = Math.toRadians(playerAngleDeg); // Player's world orientation
-        double playerDirX = Math.cos(playerAngleRad);
-        double playerDirY = Math.sin(playerAngleRad);
+        // Z-coordinate of the plane relative to the player's eye.
+        // Positive if plane is "above" player's eye Z, negative if "below".
+        double planeZRelativeToEye = planeZWorld - playerEyeZWorld;
+
+        // Player's orientation in radians
+        double playerAngleRad = Math.toRadians(playerAngleDeg);
+
+        // Angle of the current ray (for screen column x) relative to player's forward direction
+        double rayHorizontalOffsetAngleRad = Math.toRadians(screenColumnAngleDeg);
+
+        // Absolute world angle of the current ray's projection on the XY plane
+        double worldRayAngleRad = playerAngleRad + rayHorizontalOffsetAngleRad;
+
+        // Pre-calculate components that depend only on the ray's horizontal angle
+        double cosRayHorizontalOffsetAngle = Math.cos(rayHorizontalOffsetAngleRad);
+        // Avoid division by zero if ray is exactly perpendicular to view axis (e.g., FOV approaching 180 deg)
+        if (Math.abs(cosRayHorizontalOffsetAngle) < 1e-9) { // 1e-9 is a small epsilon
+            return;
+        }
+        double cosWorldRayAngle = Math.cos(worldRayAngleRad);
+        double sinWorldRayAngle = Math.sin(worldRayAngleRad);
 
         for (int y = y1; y <= y2; y++) {
-            if (y < 0 || y >= Settings.HEIGHT || x < 0 || x >= Settings.WIDTH) continue;
-            if (Math.abs(Settings.H_HEIGHT - y) < 1e-3) continue; // Avoid div by zero at horizon
+            // Boundary checks for screen coordinates
+            if (y < 0 || y >= Settings.HEIGHT || x < 0 || x >= Settings.WIDTH) {
+                continue;
+            }
 
-            // Python's Z calculation - this is distance along the view ray at the center of the screen, scaled
-            // This 'z_dist_factor' is effectively how far along the view plane the point is,
-            // proportional to its height from horizon.
-            double z_dist_factor = (Settings.H_WIDTH * worldZ) / (Settings.H_HEIGHT - y);
-            if (z_dist_factor <= 0) continue; // Point is behind or on camera plane
+            // Vertical position of the pixel in camera space (on projection plane), relative to the horizon.
+            // Positive for pixels above the horizon (typically ceiling part of screen).
+            // Negative for pixels below the horizon (typically floor part of screen).
+            // Screen Y coordinates: 0 at top, Settings.HEIGHT-1 at bottom. Horizon at Settings.H_HEIGHT.
+            double yCameraSpace = (double) Settings.H_HEIGHT - y;
 
-            // Python's px, py are world coordinates of the point on the flat
-            // px = player_dir_x * z + player_x
-            // py = player_dir_y * z + player_y
-            // This is wrong; it assumes the pixel (x,y) is AT the center of view (screenColumnAngleDeg == 0).
-            // The python code for draw_flat_col is:
-            //   z = H_WIDTH * world_z / (H_HEIGHT - iy) <--- This is distance along VIEW AXIS if pixel was at H_HEIGHT
-            //   px = player_dir_x * z + player_x <--- World X of point on flat IF ray was along view axis
-            //   py = player_dir_y * z + player_y <--- World Y of point on flat IF ray was along view axis
-            //   left_x = -player_dir_y * z + px  <--- This is effectively rotating (0, -z) by player_angle and adding to (px,py)
-            // Should be: left_x = px - player_dir_y * z_view_plane_width_at_dist_z
-            //   left_y =  player_dir_x * z + py
-            //   ...
-            //   tx = int(left_x + dx * x) & 63
-            //   ty = int(left_y + dy * x) & 63
-            // This is a scanline-based texture mapping for horizontal planes.
+            // Avoid division by zero or extreme values at/near the horizon line.
+            // A pixel on the horizon line (yCameraSpace == 0) implies the plane is infinitely far
+            // or parallel to the view direction at that point.
+            if (Math.abs(yCameraSpace) < 0.5) { // Use 0.5 pixels as a threshold
+                continue;
+            }
 
-            // Let's use the standard inverse perspective mapping:
-            // 1. Find distance to the point on the plane along the specific ray for (x,y)
-            // Angle of the ray for this pixel (x,y) from player's forward view
-            double rayAngleFromPlayerViewRad = Math.toRadians(screenColumnAngleDeg);
+            // Calculate distance to the intersection point on the plane, as projected onto the camera's Z-axis (forward view direction).
+            // Formula: z_on_view_axis = (D_proj * plane_Z_relative_to_eye) / y_on_projection_plane_from_horizon
+            // - For a floor: planeZRelativeToEye is negative, yCameraSpace is negative => z_on_view_axis is positive.
+            // - For a ceiling: planeZRelativeToEye is positive, yCameraSpace is positive => z_on_view_axis is positive.
+            double z_on_view_axis = (Settings.SCREEN_DIST * planeZRelativeToEye) / yCameraSpace;
 
-            // Distance from player eye to the point on the flat plane, along the view ray
-            // worldZ is height of plane from eye. If ray has angle `alpha` from horizontal:
-            // dist_on_ray * sin(alpha) = worldZ.
-            // Here, (H_HEIGHT - y) / SCREEN_DIST = tan(vertical_angle_of_ray)
-            // So, dist_on_ray = worldZ / sin(atan((H_HEIGHT - y) / SCREEN_DIST))
-            // Or simpler: dist_on_plane_projected_on_view_axis = Z_VIEW_AXIS = worldZ / tan(vertical_angle_of_ray)
-            // This Z_VIEW_AXIS would be used for player_dir_x * Z_VIEW_AXIS.
-            // This is complex. The Python version might be a simplification that works for its setup.
-            // For now, I'll keep the raycasting version I implemented, which is geometrically sound.
-            // If it doesn't match, the python's exact math for `px, py, left_x, left_y, dx, dy` needs to be ported.
+            // If z_on_view_axis is non-positive, the intersection point is behind the camera,
+            // or on a plane that shouldn't be visible from this pixel (e.g., trying to render a floor above the horizon).
+            if (z_on_view_axis <= 0) {
+                continue;
+            }
 
-            // Re-implementing the Python logic for flat texturing:
-            double z_flat_dist = (Settings.H_WIDTH * worldZ) / (Settings.H_HEIGHT - y);
-            // Skip rays that don't hit the plane in front of the camera
-            if (z_flat_dist <= 0) continue;
-            double z = z_flat_dist; // Positive distance to the plane along the view ray
+            // Correct for perspective: get the true distance along the actual ray to the intersection point.
+            // This accounts for rays not being parallel to the view axis (i.e., for pixels not at screen center x).
+            double true_dist_along_ray = z_on_view_axis / cosRayHorizontalOffsetAngle;
 
+            // World coordinates of the intersection point on the plane
+            double world_hit_x = playerX + true_dist_along_ray * cosWorldRayAngle;
+            double world_hit_y = playerY + true_dist_along_ray * sinWorldRayAngle;
 
-            // World coordinates of the intersection point, using player's forward direction
-            // This 'px_center', 'py_center' is where player's direct forward view would hit the plane
-            double px_center = playerDirX * z_flat_dist + playerX;
-            double py_center = playerDirY * z_flat_dist + playerY;
+            // Texture mapping: get texture coordinates from world coordinates.
+            // Assumes texture is aligned with world axes and repeats.
+            // Math.floor ensures correct behavior for negative world coordinates.
+            // Masking (& Settings.TEXTURE_MASK_X/Y) assumes texture dimensions are powers of 2.
+            int texU = ((int) Math.floor(world_hit_x) & Settings.TEXTURE_MASK_X);
+            int texV = ((int) Math.floor(world_hit_y) & Settings.TEXTURE_MASK_Y);
+            // If texture sizes can vary or are not powers of 2, use modulo arithmetic:
+            // texU = (int)Math.floor(world_hit_x) % Settings.TEXTURE_WIDTH;
+            // if (texU < 0) texU += Settings.TEXTURE_WIDTH;
+            // (Similarly for texV and Settings.TEXTURE_HEIGHT)
 
-            // World coordinates of the point on the plane hit by the ray for screen column 'x'
-            // Calculate the world coords of the leftmost and rightmost visible points on the flat at this Z_flat_dist
-            // Width of the view frustum on the plane at this distance z_flat_dist
-            // The point (x,y) on screen corresponds to an angle screenColumnAngleDeg from player's view center.
-            // World point = player_pos + z_flat_dist * (rotated_view_vector_by_screenColumnAngleDeg)
-            double actual_ray_angle_rad = Math.toRadians(playerAngleDeg + screenColumnAngleDeg);
-            double world_hit_x = playerX + z * Math.cos(actual_ray_angle_rad);
-            double world_hit_y = playerY + z * Math.sin(actual_ray_angle_rad);
-
-            int texU = ((int)Math.floor(world_hit_x) & 63);
-            int texV = ((int)Math.floor(world_hit_y) & 63);
-            // This is the most common and correct way for perspective floor/ceiling texturing.
-
+            // Assuming flatTexture is [TextureWidth][TextureHeight] or [U][V]
+            // Change to flatTexture[texV][texU] if your texture array is [Height][Width] or [V][U]
             int packedARGB = flatTexture[texU][texV];
 
+            // Apply lighting (simple multiplicative)
             int alpha = (packedARGB >> 24) & 0xFF;
-            int red   = (int)(((packedARGB >> 16) & 0xFF) * lightLevel);
-            int green = (int)(((packedARGB >> 8) & 0xFF) * lightLevel);
-            int blue  = (int)((packedARGB & 0xFF) * lightLevel);
+            int red = (int) (((packedARGB >> 16) & 0xFF) * lightLevel);
+            int green = (int) (((packedARGB >> 8) & 0xFF) * lightLevel);
+            int blue = (int) ((packedARGB & 0xFF) * lightLevel);
 
+            // Clamp color components to the valid [0, 255] range
             red = Math.min(255, Math.max(0, red));
             green = Math.min(255, Math.max(0, green));
             blue = Math.min(255, Math.max(0, blue));
