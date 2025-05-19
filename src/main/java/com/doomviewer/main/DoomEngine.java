@@ -18,28 +18,32 @@ import java.util.Arrays;
 
 public class DoomEngine extends JPanel implements Runnable {
 
-    private final String wadPath; // e.g., "wad/DOOM1.WAD"
-    private final String mapName; // e.g., "E1M1"
+    private final String wadPath;
+    private final String mapName;
 
     private JFrame frame;
     private Thread gameThread;
     private boolean running = false;
     private final InputHandler inputHandler;
 
-    private BufferedImage screenImage; // The image we draw the 3D view into
-    private int[] framebuffer;    // Pixel data for screenImage
+    // --- Double buffering for screen image ---
+    private BufferedImage visibleScreenImage; // For paintComponent to display
+    private BufferedImage renderScreenImage;  // For game logic to draw onto
+    private int[] renderFramebuffer;    // Pixel data for renderScreenImage
+    private final Object screenLock = new Object(); // For synchronizing access to visibleScreenImage
+    // --- End double buffering fields ---
 
     private WADData wadData;
-    private MapRenderer mapRenderer; // Optional 2D map renderer
+    private MapRenderer mapRenderer;
     private Player player;
     private BSP bsp;
     private SegHandler segHandler;
     private ViewRenderer viewRenderer;
 
     private long lastTime = System.nanoTime();
-    private double deltaTime = 0; // in milliseconds
+    private double deltaTime = 0;
 
-    private boolean showMap = false; // Toggle for 2D map overlay
+    private boolean showMap = false;
 
     public DoomEngine(String wadPath, String mapName) {
         this.wadPath = wadPath;
@@ -50,11 +54,11 @@ public class DoomEngine extends JPanel implements Runnable {
         setFocusable(true);
         addKeyListener(inputHandler);
 
-        // Screen image for 3D rendering
-        screenImage = new BufferedImage(Settings.WIDTH, Settings.HEIGHT, BufferedImage.TYPE_INT_ARGB);
-        framebuffer = ((DataBufferInt) screenImage.getRaster().getDataBuffer()).getData();
+        // Initialize screen images for double buffering
+        visibleScreenImage = new BufferedImage(Settings.WIDTH, Settings.HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        renderScreenImage = new BufferedImage(Settings.WIDTH, Settings.HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        renderFramebuffer = ((DataBufferInt) renderScreenImage.getRaster().getDataBuffer()).getData();
 
-        addKeyListener(inputHandler);
         addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusGained(java.awt.event.FocusEvent e) {
@@ -71,10 +75,10 @@ public class DoomEngine extends JPanel implements Runnable {
     private void onInit() throws IOException {
         wadData = new WADData(wadPath, mapName);
         player = new Player(this);
-        bsp = new BSP(this); // BSP needs player, so player first
-        segHandler = new SegHandler(this); // SegHandler needs player and WADData
-        viewRenderer = new ViewRenderer(this); // ViewRenderer needs player, segHandler, WADData
-        mapRenderer = new MapRenderer(this); // MapRenderer needs player and WADData
+        bsp = new BSP(this);
+        segHandler = new SegHandler(this);
+        viewRenderer = new ViewRenderer(this);
+        mapRenderer = new MapRenderer(this);
 
         System.out.println("DOOM Engine Initialized. Map: " + mapName);
     }
@@ -83,13 +87,12 @@ public class DoomEngine extends JPanel implements Runnable {
         if (running) return;
         running = true;
         try {
-            onInit(); // Initialize game components that might throw IOExceptions
+            onInit();
         } catch (IOException e) {
             e.printStackTrace();
             running = false;
-            // Optionally show an error dialog to the user
             JOptionPane.showMessageDialog(null, "Failed to initialize Doom Engine: " + e.getMessage(), "Initialization Error", JOptionPane.ERROR_MESSAGE);
-            return; // Don't start thread if init fails
+            return;
         }
         gameThread = new Thread(this);
         gameThread.start();
@@ -114,11 +117,11 @@ public class DoomEngine extends JPanel implements Runnable {
 
         while (running) {
             long now = System.nanoTime();
-            deltaTime = (now - lastTime) / 1_000_000.0; // Delta time in milliseconds
+            deltaTime = (now - lastTime) / 1_000_000.0;
             lastTime = now;
 
             update();
-            repaint(); // This will call paintComponent
+            repaint();
 
             frames++;
             if (System.nanoTime() - lastFpsTime >= 1_000_000_000) {
@@ -127,7 +130,6 @@ public class DoomEngine extends JPanel implements Runnable {
                 lastFpsTime = System.nanoTime();
             }
 
-            // Frame limiting
             long frameTime = System.nanoTime() - now;
             if (frameTime < nsPerFrame) {
                 try {
@@ -137,16 +139,28 @@ public class DoomEngine extends JPanel implements Runnable {
                 }
             }
         }
+        // Ensure the application exits cleanly if the loop terminates
+        if (frame != null) {
+            frame.dispose(); // Close the window
+        }
+        System.exit(0); // Terminate the application
     }
 
     private void update() {
-        // Clear the 3D framebuffer before rendering the next frame
-        Arrays.fill(framebuffer, 0xFF000000);
-        player.update();
-        segHandler.update(); // Must be before BSP to init clip arrays
-        bsp.update();        // BSP calls SegHandler.classifySegment which uses ViewRenderer
+        // Clear the render framebuffer (for renderScreenImage)
+        Arrays.fill(renderFramebuffer, 0xFF000000); // Opaque black
 
-        // Check for map toggle
+        player.update();
+        segHandler.update();
+        bsp.update(); // This will trigger rendering into renderFramebuffer via SegHandler & ViewRenderer
+
+        // After all rendering to renderScreenImage is complete, copy it to visibleScreenImage
+        synchronized (screenLock) {
+            Graphics g = visibleScreenImage.getGraphics();
+            g.drawImage(renderScreenImage, 0, 0, null);
+            g.dispose();
+        }
+
         if (inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_M) && !mapToggleDebounce) {
             showMap = !showMap;
             mapToggleDebounce = true;
@@ -155,86 +169,49 @@ public class DoomEngine extends JPanel implements Runnable {
             mapToggleDebounce = false;
         }
         if (inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_ESCAPE)) {
-            running = false; // Allow Esc to quit
+            running = false;
         }
     }
 
     private boolean mapToggleDebounce = false;
-
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
 
-        // The framebuffer is cleared before rendering in update(), so skip clearing here
-
-        // The ViewRenderer's drawFlat/drawWallColumn methods (called via SegHandler)
-        // will directly modify `this.screenPixels`.
-
-        // After BSP traversal and SegHandler rendering, screenImage contains the 3D view.
-        //
-        g2d.drawImage(screenImage, 0, 0, Settings.WIDTH, Settings.HEIGHT, null);
-
-        // Draw player sprite (weapon) overlay
-        viewRenderer.drawSprite(g2d);
-
-        // Optional: Draw 2D map overlay
-        if (showMap) {
-            mapRenderer.draw(g2d);
+        synchronized (screenLock) {
+            g2d.drawImage(visibleScreenImage, 0, 0, Settings.WIDTH, Settings.HEIGHT, null);
         }
 
-        // Optional: Draw palette for debugging
-        // viewRenderer.drawPalette(g2d);
+        // Draw player sprite (weapon) overlay directly on top
+        viewRenderer.drawSprite(g2d); // viewRenderer needs to be initialized before this is called
 
-        g2d.dispose();
+        if (showMap) {
+            mapRenderer.draw(g2d); // mapRenderer needs to be initialized
+        }
+        // g2d.dispose(); // Do not dispose g here, it's managed by Swing
     }
 
-    // Getters for other components to access engine parts
-    public WADData getWadData() {
-        return wadData;
-    }
+    public WADData getWadData() { return wadData; }
+    public Player getPlayer() { return player; }
+    public BSP getBsp() { return bsp; }
+    public SegHandler getSegHandler() { return segHandler; }
+    public ViewRenderer getViewRenderer() { return viewRenderer; }
+    public InputHandler getInputHandler() { return inputHandler; }
+    public double getDeltaTime() { return deltaTime; }
 
-    public Player getPlayer() {
-        return player;
-    }
-
-    public BSP getBsp() {
-        return bsp;
-    }
-
-    public SegHandler getSegHandler() {
-        return segHandler;
-    }
-
-    public ViewRenderer getViewRenderer() {
-        return viewRenderer;
-    }
-
-    public InputHandler getInputHandler() {
-        return inputHandler;
-    }
-
+    // This method now provides the framebuffer that game logic should draw onto
     public int[] getFramebuffer() {
-        return framebuffer;
+        return renderFramebuffer;
     }
-
-    public double getDeltaTime() {
-        return deltaTime;
-    }
-
 
     public static void main(String[] args) {
-        // Ensure WAD path and map name are correct
-        String wadFilePath = "DOOM1.WAD"; // Default, change if needed
-        String mapToLoad = "E1M1";       // Default, change if needed
+        String wadFilePath = "DOOM1.WAD";
+        String mapToLoad = "E1M1";
 
-        if (args.length > 0) {
-            wadFilePath = args[0];
-        }
-        if (args.length > 1) {
-            mapToLoad = args[1];
-        }
+        if (args.length > 0) wadFilePath = args[0];
+        if (args.length > 1) mapToLoad = args[1];
 
         final String finalWadPath = wadFilePath;
         final String finalMapName = mapToLoad;
@@ -248,8 +225,8 @@ public class DoomEngine extends JPanel implements Runnable {
             engine.frame.pack();
             engine.frame.setLocationRelativeTo(null);
             engine.frame.setVisible(true);
-            engine.requestFocusInWindow();
-            engine.start(); // Start the game loop
+            engine.requestFocusInWindow(); // Crucial for KeyListener to work immediately
+            engine.start();
         });
     }
 }
