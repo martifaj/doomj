@@ -1,4 +1,4 @@
-package com.doomviewer.core;
+package com.doomviewer.misc;
 
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -20,7 +20,7 @@ public class InputHandler implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent e) {
-        // Not used
+        // Method intentionally left blank
     }
 
     public boolean isKeyPressed(int keyCode) {

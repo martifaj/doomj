@@ -1,6 +1,6 @@
 package com.doomviewer.wad;
 
-import com.doomviewer.core.math.Vector2D;
+import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.wad.datatypes.*;
 
 import java.io.File;

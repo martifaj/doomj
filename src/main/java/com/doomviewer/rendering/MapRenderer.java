@@ -1,9 +1,9 @@
 package com.doomviewer.rendering;
 
-import com.doomviewer.core.Settings;
-import com.doomviewer.core.math.Vector2D;
+import com.doomviewer.misc.Constants;
+import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.game.Player;
-import com.doomviewer.main.DoomEngine;
+import com.doomviewer.game.DoomEngine;
 import com.doomviewer.wad.WADData;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Node;
@@ -65,7 +65,7 @@ public class MapRenderer {
     private double remapX(double worldX) {
         double margin = 30; // Margin from screen edge for map display
         double outMin = margin;
-        double outMax = Settings.WIDTH - margin;
+        double outMax = Constants.WIDTH - margin;
         // Clamp n to bounds to avoid extreme values if player goes off map for drawing map elements
         worldX = Math.max(xMin, Math.min(worldX, xMax));
         return (worldX - xMin) * (outMax - outMin) / (xMax - xMin) + outMin;
@@ -74,10 +74,10 @@ public class MapRenderer {
     private double remapY(double worldY) {
         double margin = 30;
         double outMin = margin;
-        double outMax = Settings.HEIGHT - margin;
+        double outMax = Constants.HEIGHT - margin;
         worldY = Math.max(yMin, Math.min(worldY, yMax));
         // Y is inverted for screen coordinates (0 at top)
-        return Settings.HEIGHT - ((worldY - yMin) * (outMax - outMin) / (yMax - yMin) + outMin);
+        return Constants.HEIGHT - ((worldY - yMin) * (outMax - outMin) / (yMax - yMin) + outMin);
     }
 
     public void draw(Graphics2D g2d) {
@@ -119,8 +119,8 @@ public class MapRenderer {
         double lineLength = 50; // Length of FOV lines on map
         double angleRad = Math.toRadians(-player.angle); // Negate for screen Y-down, math angle convention
 
-        double angleL = Math.toRadians(-player.angle + Settings.H_FOV);
-        double angleR = Math.toRadians(-player.angle - Settings.H_FOV);
+        double angleL = Math.toRadians(-player.angle + Constants.H_FOV);
+        double angleR = Math.toRadians(-player.angle - Constants.H_FOV);
 
         g2d.setColor(Color.YELLOW);
         g2d.drawLine((int)playerScreenX, (int)playerScreenY,
@@ -137,8 +137,8 @@ public class MapRenderer {
         Color color = new Color(random.nextInt(156)+100, random.nextInt(156)+100, random.nextInt(156)+100);
         g2d.setColor(color);
         g2d.setStroke(new BasicStroke(3));
-        g2d.drawLine(x1, 0, x1, Settings.HEIGHT);
-        g2d.drawLine(x2, 0, x2, Settings.HEIGHT);
+        g2d.drawLine(x1, 0, x1, Constants.HEIGHT);
+        g2d.drawLine(x2, 0, x2, Constants.HEIGHT);
     }
 
     // For BSP debugging: draw a specific seg on the 2D map

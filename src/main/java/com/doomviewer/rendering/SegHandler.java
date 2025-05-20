@@ -1,9 +1,9 @@
 package com.doomviewer.rendering;
 
-import com.doomviewer.core.Settings;
-import com.doomviewer.core.math.Vector2D;
+import com.doomviewer.misc.Constants;
+import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.game.Player;
-import com.doomviewer.main.DoomEngine;
+import com.doomviewer.game.DoomEngine;
 import com.doomviewer.wad.WADData;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Sector;
@@ -11,6 +11,8 @@ import com.doomviewer.wad.datatypes.Seg;
 import com.doomviewer.wad.datatypes.Sidedef;
 
 import java.util.*;
+import java.util.List;
+import java.util.ArrayList;
 
 import static com.doomviewer.game.BSP.normalizeAngle;
 
@@ -34,6 +36,9 @@ public class SegHandler {
     // Clipping arrays for portal rendering
     private int[] upperClip; // y-coordinate of uppermost drawn pixel for each x
     private int[] lowerClip; // y-coordinate of lowermost drawn pixel for each x
+    
+    // DrawSeg tracking for sprite occlusion
+    private List<DrawSeg> drawSegs; // Track rendered wall segments for sprite clipping
 
     public SegHandler(DoomEngine engine) {
         this.engine = engine;
@@ -44,28 +49,42 @@ public class SegHandler {
         this.skyId = this.wadData.assetData.skyId;
 
         this.xToAngleTable = createXToAngleTable();
-        this.upperClip = new int[Settings.WIDTH];
-        this.lowerClip = new int[Settings.WIDTH];
+        this.upperClip = new int[Constants.WIDTH];
+        this.lowerClip = new int[Constants.WIDTH];
         this.screenRange = new HashSet<>();
+        this.drawSegs = new ArrayList<>();
+    }
+
+    public int[] getUpperClip() {
+        return upperClip;
+    }
+
+    public int[] getLowerClip() {
+        return lowerClip;
     }
 
     public void update() {
         initFloorCeilClipHeight();
         initScreenRange();
+        drawSegs.clear(); // Clear previous frame's drawsegs
+    }
+    
+    public List<DrawSeg> getDrawSegs() {
+        return drawSegs;
     }
 
     private void initFloorCeilClipHeight() {
         Arrays.fill(upperClip, -1); // Nothing drawn above screen top
-        Arrays.fill(lowerClip, Settings.HEIGHT); // Nothing drawn below screen bottom
+        Arrays.fill(lowerClip, Constants.HEIGHT); // Nothing drawn below screen bottom
     }
 
     private static double[] createXToAngleTable() {
-        double[] table = new double[Settings.WIDTH + 1];
-        for (int i = 0; i <= Settings.WIDTH; i++) {
+        double[] table = new double[Constants.WIDTH + 1];
+        for (int i = 0; i <= Constants.WIDTH; i++) {
             // Angle of screen column i relative to view center.
             // i=0 (left screen edge), i=WIDTH (right screen edge)
             // H_WIDTH - i: positive for left of center, negative for right.
-            table[i] = Math.toDegrees(Math.atan2((double) Settings.H_WIDTH - i, Settings.SCREEN_DIST));
+            table[i] = Math.toDegrees(Math.atan2((double) Constants.H_WIDTH - i, Constants.SCREEN_DIST));
         }
         return table;
     }
@@ -88,7 +107,7 @@ public class SegHandler {
         // SCREEN_DIST is projection plane distance.
         // rw_distance is perpendicular distance to wall.
 
-        double numerator = Settings.SCREEN_DIST * cosTheta;
+        double numerator = Constants.SCREEN_DIST * cosTheta;
         double denominator = rwDistance * Math.cos(Math.toRadians(xAngle)); // cos(xAngle) corrects for ray length to non-center pixels
 
         if (Math.abs(denominator) < 1e-6) return MAX_SCALE; // Avoid division by zero
@@ -99,7 +118,7 @@ public class SegHandler {
 
     private void initScreenRange() {
         this.screenRange.clear();
-        for (int i = 0; i < Settings.WIDTH; i++) {
+        for (int i = 0; i < Constants.WIDTH; i++) {
             this.screenRange.add(i);
         }
     }
@@ -122,8 +141,8 @@ public class SegHandler {
         }
 
         // Clip to screen bounds
-        x1 = Math.max(0, Math.min(Settings.WIDTH - 1, x1));
-        x2 = Math.max(0, Math.min(Settings.WIDTH - 1, x2));
+        x1 = Math.max(0, Math.min(Constants.WIDTH - 1, x1));
+        x2 = Math.max(0, Math.min(Constants.WIDTH - 1, x2));
 
         if (x1 >= x2) return; // Segment is not visible or is a single line
 
@@ -151,8 +170,10 @@ public class SegHandler {
         String floorTextureId = frontSector.floorTexture;
         double lightLevel = frontSector.lightLevel;
 
-        double worldFrontZ1 = frontSector.ceilHeight - player.height;   // Ceiling height relative to player
-        double worldFrontZ2 = frontSector.floorHeight - player.height; // Floor height relative to player
+        // Use player's current eye level for Z calculations
+        double playerEyeLevel = player.getEyeLevelViewZ();
+        double worldFrontZ1 = frontSector.ceilHeight - playerEyeLevel;   // Ceiling height relative to player's eyes
+        double worldFrontZ2 = frontSector.floorHeight - playerEyeLevel; // Floor height relative to player's eyes
 
         boolean bDrawWall = !"-".equals(wallTextureId) && textures.containsKey(wallTextureId);
         boolean bDrawCeil = worldFrontZ1 > 0 || ceilTextureId.equals(this.skyId);
@@ -194,7 +215,8 @@ public class SegHandler {
         if (bDrawWall) {
             if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_BOTTOM")) != 0) {
                 // Pegged to floor: V offset is from floor up to texture top
-                middleTexAlt = (frontSector.floorHeight + wallTexture[0].length) - player.height;
+                // middleTexAlt should be relative to player's eye level for consistency in rendering calculations
+                middleTexAlt = (frontSector.floorHeight + wallTexture[0].length) - playerEyeLevel;
             } else { // Pegged to ceiling (default)
                 middleTexAlt = worldFrontZ1; // Align texture top with ceiling
             }
@@ -206,9 +228,9 @@ public class SegHandler {
 
         double rwCenterAngle = normalizeAngle(rwNormalAngle - player.angle); // Wall normal relative to player's view direction
 
-        double wallY1 = Settings.H_HEIGHT - worldFrontZ1 * rwScale1;
+        double wallY1 = Constants.H_HEIGHT - worldFrontZ1 * rwScale1;
         double wallY1Step = -rwScaleStep * worldFrontZ1;
-        double wallY2 = Settings.H_HEIGHT - worldFrontZ2 * rwScale1;
+        double wallY2 = Constants.H_HEIGHT - worldFrontZ2 * rwScale1;
         double wallY2Step = -rwScaleStep * worldFrontZ2;
 
         for (int x = x1; x <= x2; x++) {
@@ -238,8 +260,10 @@ public class SegHandler {
                     double textureColumn = rwDistance * Math.tan(Math.toRadians(angle)) - rwOffset;
                     double invScale = 1.0 / rwScale1;
 
-                    ViewRenderer.drawWallColumn(framebuffer, wallTexture, textureColumn, x, wy1, wy2,
-                            middleTexAlt, invScale, lightLevel);
+                    // Calculate correct depth for this column (distance along camera forward direction)
+                    double columnDepth = Constants.SCREEN_DIST / rwScale1;
+                    ViewRenderer.drawWallColumn(framebuffer, engine.getDepthBuffer(), wallTexture, textureColumn, x, wy1, wy2,
+                            middleTexAlt, invScale, lightLevel, columnDepth);
                 }
             }
 
@@ -250,12 +274,21 @@ public class SegHandler {
                     renderer.drawFlat(framebuffer, floorTextureId, lightLevel, x, fy1, fy2, frontSector.floorHeight, xToAngleTable[x]);
                 }
             }
+            
+            // Update clipping arrays for solid walls - this column is now fully drawn
+            // For solid walls, everything from top to bottom is occluded
+            upperClip[x] = Constants.HEIGHT - 1; // Mark entire column as drawn from top
+            lowerClip[x] = 0; // Mark entire column as drawn from bottom
 
             // Update scales and Y positions for next column
             rwScale1 += rwScaleStep;
             wallY1 += wallY1Step;
             wallY2 += wallY2Step;
         }
+        
+        // Create DrawSeg for this solid wall segment - use average scale
+        double avgScale = (rwScale1 + scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance)) / 2.0;
+        createDrawSeg(x1, x2, avgScale, false, null);
     }
 
     // Very similar to drawSolidWallRange, but with portal logic
@@ -276,10 +309,12 @@ public class SegHandler {
         String floorTexId = frontSector.floorTexture;
         double light = frontSector.lightLevel;
 
-        double worldFrontZ1 = frontSector.ceilHeight - player.height;
-        double worldBackZ1 = backSector.ceilHeight - player.height;
-        double worldFrontZ2 = frontSector.floorHeight - player.height;
-        double worldBackZ2 = backSector.floorHeight - player.height;
+        // Use player's current eye level for Z calculations
+        double playerEyeLevel = player.getEyeLevelViewZ();
+        double worldFrontZ1 = frontSector.ceilHeight - playerEyeLevel;
+        double worldBackZ1 = backSector.ceilHeight - playerEyeLevel;
+        double worldFrontZ2 = frontSector.floorHeight - playerEyeLevel;
+        double worldBackZ2 = backSector.floorHeight - playerEyeLevel;
 
         if (frontSector.ceilTexture.equals(this.skyId) &&
                 backSector.ceilTexture.equals(this.skyId)) {
@@ -326,9 +361,10 @@ public class SegHandler {
         // Upper texture vertical alignment (DONT_PEG_TOP or default)
         if (bDrawUpperWall) {
             if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_TOP")) != 0) {
-                upperTexAlt = worldFrontZ1; // Pegged to front sector's ceiling
+                upperTexAlt = worldFrontZ1; // Pegged to front sector's ceiling (relative to eye level)
             } else { // Pegged to back sector's ceiling (default for upper textures)
-                upperTexAlt = (backSector.ceilHeight + upperTexture[0].length) - player.height;
+                // upperTexAlt should be relative to player's eye level
+                upperTexAlt = (backSector.ceilHeight + upperTexture[0].length) - playerEyeLevel;
             }
             upperTexAlt += side.yOffset;
         }
@@ -338,9 +374,11 @@ public class SegHandler {
             if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_BOTTOM")) != 0) {
                 // To match Python's (potentially flawed) logic for DONT_PEG_BOTTOM on lower textures:
                 // Python uses world_front_z1, which is (frontSector.ceilHeight - player.height)
-                lowerTexAlt = worldFrontZ1; 
+                // This should also be relative to playerEyeLevel if it's a Z coordinate for rendering
+                lowerTexAlt = frontSector.ceilHeight - playerEyeLevel;
             } else { // Pegged to back sector's floor (default for lower textures)
-                lowerTexAlt = worldBackZ2; // Texture top aligns with the top of the lower step
+                // lowerTexAlt should be relative to player's eye level
+                lowerTexAlt = backSector.floorHeight - playerEyeLevel; // Texture top aligns with the top of the lower step (relative to eye)
             }
             lowerTexAlt += side.yOffset;
         }
@@ -352,20 +390,20 @@ public class SegHandler {
             rwCenterAngle = normalizeAngle(rwNormalAngle - player.angle);
         }
 
-        double wallY1 = Settings.H_HEIGHT - worldFrontZ1 * rwScale1; // Top of front sector opening
+        double wallY1 = Constants.H_HEIGHT - worldFrontZ1 * rwScale1; // Top of front sector opening
         double wallY1Step = -rwScaleStep * worldFrontZ1;
-        double wallY2 = Settings.H_HEIGHT - worldFrontZ2 * rwScale1; // Bottom of front sector opening
+        double wallY2 = Constants.H_HEIGHT - worldFrontZ2 * rwScale1; // Bottom of front sector opening
         double wallY2Step = -rwScaleStep * worldFrontZ2;
 
         double portalY1 = 0, portalY1Step = 0; // Top of back sector opening (seen through portal)
         if (bDrawUpperWall || bDrawCeil) { // Need portalY1 if upper wall or ceiling is drawn
-            portalY1 = (worldBackZ1 > worldFrontZ2) ? (Settings.H_HEIGHT - worldBackZ1 * rwScale1) : wallY2;
+            portalY1 = (worldBackZ1 > worldFrontZ2) ? (Constants.H_HEIGHT - worldBackZ1 * rwScale1) : wallY2;
             portalY1Step = (worldBackZ1 > worldFrontZ2) ? (-rwScaleStep * worldBackZ1) : wallY2Step;
         }
 
         double portalY2 = 0, portalY2Step = 0; // Bottom of back sector opening
         if (bDrawLowerWall || bDrawFloor) { // Need portalY2 if lower wall or floor is drawn
-            portalY2 = (worldBackZ2 < worldFrontZ1) ? (Settings.H_HEIGHT - worldBackZ2 * rwScale1) : wallY1;
+            portalY2 = (worldBackZ2 < worldFrontZ1) ? (Constants.H_HEIGHT - worldBackZ2 * rwScale1) : wallY1;
             portalY2Step = (worldBackZ2 < worldFrontZ1) ? (-rwScaleStep * worldBackZ2) : wallY1Step;
         }
 
@@ -402,7 +440,9 @@ public class SegHandler {
                 int wy1 = Math.max(drawWallY1, curUpperClip + 1);      // Top is front ceil
                 int wy2 = Math.min(drawPortalY1 - 1, curLowerClip - 1); // Bottom is back ceil
                 if (wy1 <= wy2) {
-                    ViewRenderer.drawWallColumn(framebuffer, upperTexture, textureColumn, x, wy1, wy2, upperTexAlt, invScale, light);
+                    // Calculate correct depth for this column  
+                    double columnDepth = Constants.SCREEN_DIST / rwScale1;
+                    ViewRenderer.drawWallColumn(framebuffer, engine.getDepthBuffer(), upperTexture, textureColumn, x, wy1, wy2, upperTexAlt, invScale, light, columnDepth);
                     curUpperClip = Math.max(curUpperClip, wy2);
                 }
             }
@@ -410,7 +450,6 @@ public class SegHandler {
             // Update overall screen clip based on portal opening (back sector)
             // These become the new clip bounds for things behind this portal
             upperClip[x] = Math.max(curUpperClip, Math.max(drawWallY1, drawPortalY1 - 1)); // Portal top clip
-            // Python uses complex logic here based on wy2 for upperclip[x] = wy2
 
             if (bDrawFloor) {
                 // Draw floor from front sector's floor OR portal's floor, whichever is lower, down to current clip bottom
@@ -427,35 +466,16 @@ public class SegHandler {
                 int wy1 = Math.max(drawPortalY2, curUpperClip + 1);    // Top is back floor
                 int wy2 = Math.min(drawWallY2 - 1, curLowerClip - 1);  // Bottom is front floor
                 if (wy1 <= wy2) {
-                    ViewRenderer.drawWallColumn(framebuffer, lowerTexture, textureColumn, x, wy1, wy2, lowerTexAlt, invScale, light);
+                    // Calculate correct depth for this column
+                    double columnDepth = Constants.SCREEN_DIST / rwScale1;
+                    ViewRenderer.drawWallColumn(framebuffer, engine.getDepthBuffer(), lowerTexture, textureColumn, x, wy1, wy2, lowerTexAlt, invScale, light, columnDepth);
                     curLowerClip = Math.min(curLowerClip, wy1);
                 }
             }
 
             // Update clip for things seen *through* the portal (back sector's opening)
-            // This is different from Python's direct update within the loop.
-            // Here, we're tracking the clip region *for the current front sector*.
-            // The clip values for the *next* BSP traversal (through the portal) will be set by passing
-            // the portal's y-boundaries (drawPortalY1, drawPortalY2) to a recursive call or new state.
-            // For now, this function's clip arrays (upperClip, lowerClip) are for the current rendering pass.
-            // The python code updates upper_clip/lower_clip with portal_y values to restrict further drawing *in the same subsector*.
-            // Let's follow python more closely on clip updates:
-            // If upper wall was drawn, upper_clip[x] = max(original_curUpperClip, wy2_of_upper_wall)
-            // If lower wall was drawn, lower_clip[x] = min(original_curLowerClip, wy1_of_lower_wall)
-            // And the portal opening itself becomes the new clip for things *behind* it.
-            // This means upperClip[x] and lowerClip[x] define the transparent window.
-
-            // After drawing parts of the current front sector and its portal walls:
-            // The new "open" area for things behind this seg is (drawPortalY1, drawPortalY2)
-            // We must update the main upperClip and lowerClip arrays for future segs at this X.
-            // This is tricky. Python's `self.upper_clip[x] = wy2` means that if an upper wall part was drawn,
-            // the new top for any further drawing (even in this sector) is the bottom of that wall part.
-
-            // Let's simplify and assume the clip arrays are correctly managed by the calls to drawFlat/drawWallColumn.
-            // The critical part is that `upperClip[x]` and `lowerClip[x]` should define the visible part of the back sector.
             this.upperClip[x] = curUpperClip;
             this.lowerClip[x] = curLowerClip;
-
 
             rwScale1 += rwScaleStep;
             wallY1 += wallY1Step;
@@ -467,6 +487,10 @@ public class SegHandler {
                 portalY2 += portalY2Step;
             }
         }
+        
+        // Create DrawSeg for this portal segment - use average scale
+        double avgScale = (rwScale1 + scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance)) / 2.0;
+        createDrawSeg(x1, x2, avgScale, false, null);
     }
 
 
@@ -533,4 +557,47 @@ public class SegHandler {
             engine.getBsp().isTraverseBsp = false;
         }
     }
+    
+    private void createDrawSeg(int x1, int x2, double avgScale, boolean isMasked, String maskedTextureName) {
+        DrawSeg drawSeg = new DrawSeg(x1, x2, avgScale, isMasked, maskedTextureName, Constants.HEIGHT);
+        
+        // Fill in the clipping arrays based on what was actually drawn
+        // sprtopclip: lowest Y that sprites can draw to (top occlusion boundary)
+        // sprbottomclip: highest Y that sprites can draw to (bottom occlusion boundary)
+        for (int x = x1; x <= x2; x++) {
+            if (x >= 0 && x < Constants.WIDTH) {
+                int arrayIndex = x - x1;
+                if (arrayIndex >= 0 && arrayIndex < drawSeg.sprtopclip.length) {
+                    // Check if this column was actually rendered (was in screenRange when wall was drawn)
+                    // For solid walls: upperClip[x] = HEIGHT-1, lowerClip[x] = 0
+                    // For portal walls or unrendered: upperClip[x] and lowerClip[x] have different values
+                    if (upperClip[x] >= Constants.HEIGHT - 1 && lowerClip[x] <= 0) {
+                        // Solid wall column - completely occlude this column
+                        drawSeg.sprtopclip[arrayIndex] = (short) (Constants.HEIGHT - 1); // Clip from bottom
+                        drawSeg.sprbottomclip[arrayIndex] = 0; // Clip from top
+                    } else if (upperClip[x] > -1 || lowerClip[x] < Constants.HEIGHT) {
+                        // Portal wall - partial occlusion
+                        if (upperClip[x] > -1) { // Something drawn from top
+                            drawSeg.sprtopclip[arrayIndex] = (short) (upperClip[x] + 1);
+                        } else {
+                            drawSeg.sprtopclip[arrayIndex] = 0; // No top occlusion
+                        }
+                        
+                        if (lowerClip[x] < Constants.HEIGHT) { // Something drawn from bottom
+                            drawSeg.sprbottomclip[arrayIndex] = (short) (lowerClip[x] - 1);
+                        } else {
+                            drawSeg.sprbottomclip[arrayIndex] = (short) (Constants.HEIGHT - 1); // No bottom occlusion
+                        }
+                    } else {
+                        // Column was not rendered (not in screenRange) - no occlusion
+                        drawSeg.sprtopclip[arrayIndex] = 0; // No top occlusion
+                        drawSeg.sprbottomclip[arrayIndex] = (short) (Constants.HEIGHT - 1); // No bottom occlusion
+                    }
+                }
+            }
+        }
+        
+        drawSegs.add(drawSeg);
+    }
 }
+

@@ -1,9 +1,9 @@
-package com.doomviewer.main;
+package com.doomviewer.game;
 
-import com.doomviewer.core.InputHandler;
-import com.doomviewer.core.Settings;
-import com.doomviewer.game.BSP;
-import com.doomviewer.game.Player;
+import com.doomviewer.misc.InputHandler;
+import com.doomviewer.misc.Constants;
+import com.doomviewer.game.objects.GameDefinitions;
+import com.doomviewer.rendering.FrameBuffer; // Import the new Framebuffer class
 import com.doomviewer.rendering.MapRenderer;
 import com.doomviewer.rendering.SegHandler;
 import com.doomviewer.rendering.ViewRenderer;
@@ -11,25 +11,26 @@ import com.doomviewer.wad.WADData;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferInt;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class DoomEngine extends JPanel implements Runnable {
 
+    private static final Logger LOGGER = Logger.getLogger(DoomEngine.class.getName());
     private final String wadPath;
     private final String mapName;
 
     private JFrame frame;
-    private Thread gameThread;
     private boolean running = false;
     private final InputHandler inputHandler;
 
     // --- Double buffering for screen image ---
-    private BufferedImage visibleScreenImage; // For paintComponent to display
-    private BufferedImage renderScreenImage;  // For game logic to draw onto
-    private int[] renderFramebuffer;    // Pixel data for renderScreenImage
+    private final FrameBuffer visibleScreenBuffer;
+    private final FrameBuffer renderScreenBuffer;
+    
+    // --- Depth buffer for sprite occlusion ---
+    private final double[] depthBuffer; // Depth value for each pixel [WIDTH * HEIGHT]
     private final Object screenLock = new Object(); // For synchronizing access to visibleScreenImage
     // --- End double buffering fields ---
 
@@ -39,73 +40,91 @@ public class DoomEngine extends JPanel implements Runnable {
     private BSP bsp;
     private SegHandler segHandler;
     private ViewRenderer viewRenderer;
+    private ObjectManager objectManager;
 
     private long lastTime = System.nanoTime();
     private double deltaTime = 0;
 
     private boolean showMap = false;
+    private int currentSkillLevel = 4; // Default to Skill 4 (Ultra-Violence)
 
     public DoomEngine(String wadPath, String mapName) {
         this.wadPath = wadPath;
         this.mapName = mapName;
 
         this.inputHandler = new InputHandler();
-        setPreferredSize(new Dimension(Settings.WIDTH, Settings.HEIGHT));
+        setPreferredSize(new Dimension(Constants.WIDTH, Constants.HEIGHT));
         setFocusable(true);
         addKeyListener(inputHandler);
 
         // Initialize screen images for double buffering
-        visibleScreenImage = new BufferedImage(Settings.WIDTH, Settings.HEIGHT, BufferedImage.TYPE_INT_ARGB);
-        renderScreenImage = new BufferedImage(Settings.WIDTH, Settings.HEIGHT, BufferedImage.TYPE_INT_ARGB);
-        renderFramebuffer = ((DataBufferInt) renderScreenImage.getRaster().getDataBuffer()).getData();
+        visibleScreenBuffer = new FrameBuffer(Constants.WIDTH, Constants.HEIGHT);
+        renderScreenBuffer = new FrameBuffer(Constants.WIDTH, Constants.HEIGHT);
+        
+        // Initialize depth buffer
+        depthBuffer = new double[Constants.WIDTH * Constants.HEIGHT];
 
         addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusGained(java.awt.event.FocusEvent e) {
-                System.out.println("DoomEngine panel GAINED focus");
+                LOGGER.info("DoomEngine panel gained focus");
             }
 
             @Override
             public void focusLost(java.awt.event.FocusEvent e) {
-                System.out.println("DoomEngine panel LOST focus. Opposite component: " + e.getOppositeComponent());
+                LOGGER.info("DoomEngine panel lost focus. Opposite component: " + e.getOppositeComponent());
             }
         });
     }
 
     private void onInit() throws IOException {
-        wadData = new WADData(wadPath, mapName);
-        player = new Player(this);
+        wadData = new WADData(wadPath, mapName); // wadData needs to be initialized first
+
+        // Player needs to be initialized before ObjectManager, as ObjectManager creates MapObjects
+        // which might depend on the player (e.g., for initial floor height or as a target).
+        com.doomviewer.wad.datatypes.Thing playerThing = null;
+        if (wadData.things != null && !wadData.things.isEmpty()) {
+            playerThing = wadData.things.stream()
+                .filter(t -> t.type == 1) // Assuming type 1 is a player start
+                .findFirst()
+                .orElseGet(() -> wadData.things.get(0));
+        }
+        if (playerThing == null) {
+            throw new IOException("Player Thing not found in WAD data for map " + mapName);
+        }
+        // Temporarily get GameDefinitions for Player. ObjectManager will create its own instance.
+        // This is a bit of a workaround. Ideally, GameDefinitions is a singleton or passed around.
+        GameDefinitions tempGameDefs = new GameDefinitions(); // Create a temporary instance for the player
+        player = new Player(this, playerThing, tempGameDefs, wadData.assetData);
+
+        // ObjectManager needs WADData and creates its own GameDefinitions
+        objectManager = new ObjectManager(this, wadData);
+        // Now that objectManager is created, if Player needs the final GameDefinitions, update it.
+        // However, Player constructor already took one. If it stores it, it might be the temp one.
+        // For now, let's assume the temp one is sufficient for Player's immediate needs.
+
         bsp = new BSP(this);
         segHandler = new SegHandler(this);
         viewRenderer = new ViewRenderer(this);
         mapRenderer = new MapRenderer(this);
 
-        System.out.println("DOOM Engine Initialized. Map: " + mapName);
+        LOGGER.info("DOOM Engine initialized for map: " + mapName);
     }
 
     public synchronized void start() {
         if (running) return;
         running = true;
+        Thread gameThread; // Declared as local variable
         try {
             onInit();
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Failed to initialize Doom Engine", e);
             running = false;
             JOptionPane.showMessageDialog(null, "Failed to initialize Doom Engine: " + e.getMessage(), "Initialization Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
         gameThread = new Thread(this);
         gameThread.start();
-    }
-
-    public synchronized void stop() {
-        if (!running) return;
-        running = false;
-        try {
-            gameThread.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
     }
 
     @Override
@@ -148,16 +167,26 @@ public class DoomEngine extends JPanel implements Runnable {
 
     private void update() {
         // Clear the render framebuffer (for renderScreenImage)
-        Arrays.fill(renderFramebuffer, 0xFF000000); // Opaque black
+        renderScreenBuffer.clear(0xFF000000); // Opaque black
+        
+        // Clear depth buffer (initialize to infinity = no geometry drawn yet)
+        java.util.Arrays.fill(depthBuffer, Double.MAX_VALUE);
 
-        player.update();
+        player.update(this);
         segHandler.update();
         bsp.update(); // This will trigger rendering into renderFramebuffer via SegHandler & ViewRenderer
+        objectManager.update();
+        
+        // Draw world sprites (enemies, etc.) to the render buffer with occlusion
+        if (viewRenderer != null) {
+            // Use the new occlusion-aware sprite rendering
+            viewRenderer.drawWorldSpritesWithOcclusion(renderScreenBuffer.getPixelData(), objectManager.getVisibleSortedMapObjects());
+        }
 
         // After all rendering to renderScreenImage is complete, copy it to visibleScreenImage
         synchronized (screenLock) {
-            Graphics g = visibleScreenImage.getGraphics();
-            g.drawImage(renderScreenImage, 0, 0, null);
+            Graphics g = visibleScreenBuffer.getImageBuffer().getGraphics();
+            g.drawImage(renderScreenBuffer.getImageBuffer(), 0, 0, null);
             g.dispose();
         }
 
@@ -181,14 +210,19 @@ public class DoomEngine extends JPanel implements Runnable {
         Graphics2D g2d = (Graphics2D) g;
 
         synchronized (screenLock) {
-            g2d.drawImage(visibleScreenImage, 0, 0, Settings.WIDTH, Settings.HEIGHT, null);
+            g2d.drawImage(visibleScreenBuffer.getImageBuffer(), 0, 0, Constants.WIDTH, Constants.HEIGHT, null);
         }
 
         // Draw player sprite (weapon) overlay directly on top
-        viewRenderer.drawSprite(g2d); // viewRenderer needs to be initialized before this is called
+        if (viewRenderer != null) { // Ensure viewRenderer is initialized
+            viewRenderer.drawSprite(g2d);
+        }
 
+        // Optional: Draw 2D map overlay
         if (showMap) {
-            mapRenderer.draw(g2d); // mapRenderer needs to be initialized
+            if (mapRenderer != null) { // Ensure mapRenderer is initialized
+                mapRenderer.draw(g2d);
+            }
         }
         // g2d.dispose(); // Do not dispose g here, it's managed by Swing
     }
@@ -200,10 +234,16 @@ public class DoomEngine extends JPanel implements Runnable {
     public ViewRenderer getViewRenderer() { return viewRenderer; }
     public InputHandler getInputHandler() { return inputHandler; }
     public double getDeltaTime() { return deltaTime; }
+    public int getCurrentSkillLevel() { return currentSkillLevel; } // Getter for skill level
 
     // This method now provides the framebuffer that game logic should draw onto
     public int[] getFramebuffer() {
-        return renderFramebuffer;
+        return renderScreenBuffer.getPixelData();
+    }
+    
+    // Depth buffer for sprite occlusion
+    public double[] getDepthBuffer() {
+        return depthBuffer;
     }
 
     public static void main(String[] args) {
@@ -230,3 +270,4 @@ public class DoomEngine extends JPanel implements Runnable {
         });
     }
 }
+

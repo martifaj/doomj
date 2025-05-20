@@ -1,27 +1,27 @@
 package com.doomviewer.wad.assets;
 
-import com.doomviewer.core.Settings;
-import com.doomviewer.utils.ImageUtils;
+import com.doomviewer.misc.Constants;
+import com.doomviewer.rendering.FrameBuffer; // Updated import
 import com.doomviewer.wad.WADReader;
 import com.doomviewer.wad.WADReader.LumpInfo;
 import com.doomviewer.wad.datatypes.*;
 
-import javax.imageio.ImageIO;
+import java.util.logging.Logger;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.doomviewer.core.Settings.TEXTURE_HEIGHT;
-import static com.doomviewer.core.Settings.TEXTURE_WIDTH;
+import static com.doomviewer.misc.Constants.TEXTURE_HEIGHT;
+import static com.doomviewer.misc.Constants.TEXTURE_WIDTH;
 
 
 public class AssetData {
     private WADReader reader;
+    private static final Logger LOGGER = Logger.getLogger(AssetData.class.getName());
     private List<LumpInfo> directory; // Keep a reference for getLumpIndex
 
     public List<List<int[]>> palettes; // List of palettes, each palette is a List of int[3] RGB
@@ -34,6 +34,7 @@ public class AssetData {
 
     // Wall and flat textures are stored as int[width][height] (column-major) ARGB pixel arrays
     public Map<String, int[][]> textures;
+    private Map<String, Patch> spritePatches; // To store patch objects for sprites
 
     public String skyId;
     public String skyTexName;
@@ -49,6 +50,8 @@ public class AssetData {
         this.paletteIdx = 0;
         this.currentPalette = this.palettes.get(this.paletteIdx);
 
+        // Initialize spritePatches before loadSprites is called
+        this.spritePatches = new HashMap<>();
         // Sprites
         this.sprites = loadSprites("S_START", "S_END");
 
@@ -86,7 +89,7 @@ public class AssetData {
         if (this.textures.containsKey(this.skyTexName)) {
             this.skyTex = this.textures.get(this.skyTexName);
         } else {
-            System.err.println("Warning: Sky texture " + this.skyTexName + " not found.");
+            LOGGER.warning("Sky texture not found: " + this.skyTexName);
             // Fallback: create a dummy small blue texture
             this.skyTex = new int[1][1];
             this.skyTex[0][0] = 0xFF0000FF; // Opaque Blue
@@ -111,6 +114,10 @@ public class AssetData {
         return -1; // Or throw exception
     }
 
+    public Patch getSpritePatch(String spriteLumpName) {
+        if (spritePatches == null) return null; // if loadSprites wasn't modified to populate it
+        return spritePatches.get(spriteLumpName.toUpperCase());
+    }
 
     private List<List<int[]>> loadPalettes() throws IOException {
         LumpInfo playpalLump = getLumpInfo("PLAYPAL");
@@ -153,27 +160,27 @@ public class AssetData {
 
 
     private Map<String, BufferedImage> loadSprites(String startMarker, String endMarker) throws IOException {
-        Map<String, BufferedImage> loadedSprites = new HashMap<>();
+        // Make sure this.spritePatches is initialized before calling this
+        Map<String, BufferedImage> loadedSpriteImages = new HashMap<>();
         int idx1 = getLumpIndex(startMarker);
         int idx2 = getLumpIndex(endMarker);
 
         if (idx1 == -1 || idx2 == -1) {
-            System.err.println("Warning: Sprite markers " + startMarker + "/" + endMarker + " not found.");
-            return loadedSprites;
+            LOGGER.warning("Sprite markers not found: " + startMarker + "/" + endMarker);
+            return loadedSpriteImages;
         }
 
         for (int i = idx1 + 1; i < idx2; i++) {
             LumpInfo lumpInfo = this.directory.get(i);
-            // Skip empty lumps or other markers
-            if (lumpInfo.lumpSize == 0 || lumpInfo.lumpName.startsWith("S_") || lumpInfo.lumpName.startsWith("P_") || lumpInfo.lumpName.contains("$")) {
-                // Actual sprites don't usually have these prefixes, those are markers.
-                // But the python code just iterates and loads. So we follow that.
-                // The python code filters S_START and S_END and processes everything in between.
-            }
-            Patch patch = new Patch(this, lumpInfo.lumpName, true); // isSprite = true for scaling
-            loadedSprites.put(lumpInfo.lumpName, patch.getImage());
+            if (lumpInfo.lumpSize == 0) continue;
+
+            String lumpNameUpper = lumpInfo.lumpName.toUpperCase();
+            Patch patch = new Patch(this, lumpNameUpper, true); // Use uppercase consistently
+            this.spritePatches.put(lumpNameUpper, patch);
+            loadedSpriteImages.put(lumpNameUpper, patch.getImage());
         }
-        return loadedSprites;
+        this.sprites = loadedSpriteImages; // Assign to the class member
+        return loadedSpriteImages; // Though constructor won't use return value
     }
 
     private List<TextureMap> loadTextureMaps(String textureLumpName) throws IOException {
@@ -200,7 +207,7 @@ public class AssetData {
         int idx2 = getLumpIndex(endMarker);
 
         if (idx1 == -1 || idx2 == -1) {
-            System.err.println("Warning: Flat markers " + startMarker + "/" + endMarker + " not found.");
+            LOGGER.warning("Flat markers not found: " + startMarker + "/" + endMarker);
             return loadedFlats;
         }
 
@@ -238,7 +245,7 @@ public class AssetData {
 
             LumpInfo patchLump = assetData.getLumpInfo(this.name);
             if (patchLump == null || patchLump.lumpSize == 0) {
-                System.err.println("Patch " + this.name + " not found or empty. Creating dummy patch.");
+                LOGGER.warning("Patch not found or empty: " + this.name + ". Creating dummy.");
                 this.width = 1;
                 this.height = 1;
                 this.header = new PatchHeader(); // Minimal header
@@ -261,9 +268,13 @@ public class AssetData {
 
             this.image = createImageFromColumns();
             if (isSprite) {
-                this.image = ImageUtils.scaleImage(this.image,
-                        (int) (this.width * Settings.SCALE),
-                        (int) (this.height * Settings.SCALE));
+                // Create a Framebuffer from the patch image to use scaleSelf
+                FrameBuffer patchFrameBuffer = new FrameBuffer(this.image);
+                patchFrameBuffer.scaleSelf(
+                    (int) (this.width * Constants.SCALE),
+                    (int) (this.height * Constants.SCALE)
+                );
+                this.image = patchFrameBuffer.getImageBuffer(); // Get the scaled image back
             }
         }
 
@@ -330,7 +341,14 @@ public class AssetData {
                         int yPos = i + currentPost.topDelta;
 
                         if (yPos >= 0 && yPos < this.height) {
-                            ImageUtils.setPixel(surf, visualX, yPos, rgbPalette);
+                            // Create a temporary Framebuffer to use applyPixelToImageBuffer
+                            // This is inefficient if done per pixel. Consider if this logic can be optimized.
+                            // For now, directly setting RGB on surf as Framebuffer.setPixel was static.
+                            // If Framebuffer instance methods are preferred, surf itself should be a Framebuffer.
+                            // However, createImageFromColumns returns BufferedImage.
+                            // Let's assume direct manipulation of surf (BufferedImage) is intended here.
+                            int colorValue = (255 << 24) | (rgbPalette[0] << 16) | (rgbPalette[1] << 8) | rgbPalette[2];
+                            surf.setRGB(visualX, yPos, colorValue);
                         }
                     }
                 }
@@ -365,7 +383,7 @@ public class AssetData {
 
             for (PatchMap patchMapInfo : this.texMap.patchMaps) {
                 if (patchMapInfo.pNameIndex >= assetData.texturePatches.size()) {
-                    System.err.println("Warning: pNameIndex " + patchMapInfo.pNameIndex + " out of bounds for texturePatches (size: " + assetData.texturePatches.size() + ") in texture " + texMap.name);
+                    LOGGER.warning("pNameIndex out of bounds: " + patchMapInfo.pNameIndex + " (size: " + assetData.texturePatches.size() + ") in texture " + texMap.name);
                     continue;
                 }
                 Patch sourcePatch = assetData.texturePatches.get(patchMapInfo.pNameIndex);
@@ -375,7 +393,9 @@ public class AssetData {
                 }
             }
             g2d.dispose();
-            return ImageUtils.bufferedImageToColumnMajorIntArray(surface);
+            // Create a Framebuffer from the surface to use getImageBufferAsColumnMajorArray
+            FrameBuffer surfaceFrameBuffer = new FrameBuffer(surface);
+            return surfaceFrameBuffer.getImageBufferAsColumnMajorArray();
         }
 
         public int[][] getImage() {
@@ -401,11 +421,15 @@ public class AssetData {
                 int ix = i % 64;
                 int iy = i / 64;
                 int colorIdx = this.flatData.get(i);
-                int[] rgb = this.palette.get(colorIdx); // Potential ArrayOutOfBounds if colorIdx is bad
-                ImageUtils.setPixel(surface, ix, iy, rgb); // Implicitly opaque
+                int[] rgb = this.palette.get(colorIdx);
+                // Similar to Patch, directly setting RGB on surface.
+                int colorValue = (255 << 24) | (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+                surface.setRGB(ix, iy, colorValue);
             }
 
-            return ImageUtils.bufferedImageToColumnMajorIntArray(surface);
+            // Create a Framebuffer from the surface to use getImageBufferAsColumnMajorArray
+            FrameBuffer surfaceFrameBuffer = new FrameBuffer(surface);
+            return surfaceFrameBuffer.getImageBufferAsColumnMajorArray();
         }
 
         public int[][] getImage() {
@@ -413,3 +437,4 @@ public class AssetData {
         }
     }
 }
+

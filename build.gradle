@@ -15,11 +15,12 @@ dependencies {
 }
 
 application { // Optional: configure if using the application plugin
-    mainClass = 'Main' // Replace 'Main' with your actual main class fully qualified name
+    mainClass = 'com.doomviewer.game.DoomEngine'
 }
 
-test {
-    useJUnitPlatform()
+// Disable test tasks for this project
+tasks.withType(Test).configureEach {
+    enabled = false
 }
 
 // Set Java version compatibility

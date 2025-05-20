@@ -1,4 +1,4 @@
-package com.doomviewer.core.math;
+package com.doomviewer.misc.math;
 
 public class Vector2D {
     public double x;

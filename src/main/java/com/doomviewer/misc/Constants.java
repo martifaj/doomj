@@ -1,8 +1,8 @@
-package com.doomviewer.core;
+package com.doomviewer.misc;
 
 import java.awt.Color;
 
-public class Settings {
+public class Constants {
     // Original DOOM resolution
     public static final int DOOM_W = 320;
     public static final int DOOM_H = 200;

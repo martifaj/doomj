@@ -1,30 +1,47 @@
 package com.doomviewer.wad;
 
-import com.doomviewer.core.math.Vector2D;
+import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.wad.assets.AssetData;
 import com.doomviewer.wad.datatypes.*;
 import com.doomviewer.wad.WADReader.LumpInfo;
+import java.util.Map;
+import java.util.Collections;
+import java.util.logging.Logger;
 
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class WADData {
+    private static final Logger LOGGER = Logger.getLogger(WADData.class.getName());
 
-    public static final Map<String, Integer> LUMP_INDICES_MAP = new HashMap<>() {{
-        put("THINGS", 1); put("LINEDEFS", 2); put("SIDEDEFS", 3);
-        put("VERTEXES", 4); put("SEGS", 5); put("SSECTORS", 6);
-        put("NODES", 7); put("SECTORS", 8); /* REJECT: 9, BLOCKMAP: 10 */
-    }};
+    public static final Map<String, Integer> LUMP_INDICES_MAP = Collections.unmodifiableMap(
+        Map.of(
+            "THINGS",    1,
+            "LINEDEFS",  2,
+            "SIDEDEFS",  3,
+            "VERTEXES",  4,
+            "SEGS",      5,
+            "SSECTORS",  6,
+            "NODES",     7,
+            "SECTORS",   8
+        )
+    );
 
-    public static final Map<String, Integer> LINEDEF_FLAGS_MAP = new HashMap<>() {{
-        put("BLOCKING", 1); put("BLOCK_MONSTERS", 2); put("TWO_SIDED", 4);
-        put("DONT_PEG_TOP", 8); put("DONT_PEG_BOTTOM", 16); put("SECRET", 32);
-        put("SOUND_BLOCK", 64); put("DONT_DRAW", 128); put("MAPPED", 256);
-    }};
+    public static final Map<String, Integer> LINEDEF_FLAGS_MAP = Collections.unmodifiableMap(
+        Map.of(
+            "BLOCKING",       1,
+            "BLOCK_MONSTERS", 2,
+            "TWO_SIDED",      4,
+            "DONT_PEG_TOP",   8,
+            "DONT_PEG_BOTTOM",16,
+            "SECRET",        32,
+            "SOUND_BLOCK",   64,
+            "DONT_DRAW",    128,
+            "MAPPED",       256
+        )
+    );
 
 
     private WADReader reader;
@@ -114,7 +131,7 @@ public class WADData {
             if (sidedef.sectorId >= 0 && sidedef.sectorId < this.sectors.size()) {
                 sidedef.sector = this.sectors.get(sidedef.sectorId);
             } else {
-                System.err.println("Warning: Sidedef has invalid sector_id: " + sidedef.sectorId);
+                LOGGER.warning("Invalid sidedef sector_id: " + sidedef.sectorId);
                 // Potentially assign a default/dummy sector or handle error
             }
         }
@@ -125,7 +142,7 @@ public class WADData {
             if (linedef.frontSidedefId >= 0 && linedef.frontSidedefId < this.sidedefs.size()) {
                 linedef.frontSidedef = this.sidedefs.get(linedef.frontSidedefId);
             } else {
-                System.err.println("Warning: Linedef has invalid front_sidedef_id: " + linedef.frontSidedefId);
+                LOGGER.warning("Invalid linedef front_sidedef_id: " + linedef.frontSidedefId);
             }
 
             if (linedef.backSidedefId == 0xFFFF || linedef.backSidedefId == -1) { // 0xFFFF as unsigned short
@@ -134,8 +151,8 @@ public class WADData {
                 if (linedef.backSidedefId >= 0 && linedef.backSidedefId < this.sidedefs.size()) {
                     linedef.backSidedef = this.sidedefs.get(linedef.backSidedefId);
                 } else {
-                    System.err.println("Warning: Linedef has invalid back_sidedef_id: " + linedef.backSidedefId);
-                    linedef.backSidedef = null; // Treat as one-sided
+                    LOGGER.warning("Invalid linedef back_sidedef_id: " + linedef.backSidedefId);
+                    linedef.backSidedef = null;
                 }
             }
         }
@@ -154,7 +171,7 @@ public class WADData {
             }
 
             if (seg.linedef == null) {
-                System.err.println("Warning: Seg has null linedef (id: " + seg.linedefId + "). Skipping seg update.");
+                LOGGER.warning("Seg has null linedef (id: " + seg.linedefId + "), skipping update.");
                 continue;
             }
 
@@ -170,15 +187,15 @@ public class WADData {
             if (frontSidedef != null) {
                 seg.frontSector = frontSidedef.sector;
             } else {
-                System.err.println("Warning: Seg's effective front sidedef is null.");
+                LOGGER.warning("Seg's effective front sidedef is null.");
             }
 
             if ((seg.linedef.flags & LINEDEF_FLAGS_MAP.get("TWO_SIDED")) != 0) {
                 if (backSidedef != null) {
                     seg.backSector = backSidedef.sector;
                 } else {
-                    System.err.println("Warning: Seg's linedef is TWO_SIDED but effective back sidedef is null.");
-                    seg.backSector = null; // Treat as error or one-sided for this seg
+                    LOGGER.warning("Two-sided linedef but back sidedef is null for seg id: " + seg.linedefId);
+                    seg.backSector = null;
                 }
             } else {
                 seg.backSector = null;
@@ -208,33 +225,8 @@ public class WADData {
             // This implies the result could be negative. Standard BAMS to degrees is 0-360.
             // The `(short)seg.angle` could be negative if MSB is set.
             // If `seg.angle` is signed short from WAD:
-            // Let's trust the Python code's math:
-            // `(seg.angle << 16)`: if seg.angle is -1 (0xFFFF), this becomes 0xFFFF0000.
-            // If `seg.angle` is `short`:
-            long extendedAngle = ((long)seg.angle & 0xFFFF) << 16; // Treat as unsigned short then shift
-            // Or simply: double originalAngle = seg.angle; (promotes to double)
-            // originalAngle = originalAngle * (360.0 / 65536.0);
-            double calculatedAngle = ( (double)seg.angle * Math.pow(2,16) ) * 8.38190317e-8;
-            // The original python code is `seg.angle = (seg.angle << 16) * 8.38190317e-8`
-            // If `seg.angle` is a short, `<< 16` effectively multiplies by 2^16, BUT it operates on the int representation.
-            // A Java short cast to int, then shifted:
-            // int shifted = ((int)seg.angle) << 16; // This is correct if seg.angle means the high word.
-            // However, seg.angle from WAD is a direct 16-bit BAMS.
-            // The most direct conversion for a 16-bit BAMS (stored as short) to degrees:
-            // `degrees = ( ( (int)seg.angle & 0xFFFF ) / 65536.0) * 360.0;`
-            // The python code is a bit idiosyncratic here. Let's try to match its effect.
-            // `(seg.angle << 16)` effectively puts the 16-bit BAMS value into the high 16 bits of a 32-bit integer.
-            // Example: BAMS 0x4000 (North, 90deg). seg.angle = 0x4000 = 16384.
-            // (16384 << 16) = 0x40000000 = 1073741824.
-            // 1073741824 * 8.38190317e-8 = 90.0. This works.
-
-            int shiftedIntAngle = ((int)seg.rawBamsAngle) << 16; // Use the raw short value
-            seg.angle = shiftedIntAngle * 8.38190317e-8;        // Assign to the double field
-
-            if (seg.angle < 0) {
-                seg.angle += 360.0;
-            }
-            seg.angle %= 360.0;
+            // Convert 16-bit BAMS angle to degrees
+            seg.angle = bamsToDegrees(seg.rawBamsAngle);
 
             // Texture special case from Python
             if (seg.frontSector != null && seg.backSector != null && frontSidedef != null && backSidedef != null) {
@@ -248,6 +240,16 @@ public class WADData {
         }
     }
 
+    /**
+     * Convert a 16-bit Binary Angle Measurement System (BAMS) value to degrees in [0,360).
+     * @param bams 16-bit BAMS angle
+     * @return angle in degrees
+     */
+    private static double bamsToDegrees(short bams) {
+        int unsigned = bams & 0xFFFF;
+        return unsigned * (360.0 / 65536.0);
+    }
+    
     // Functional interface for reading data items
     @FunctionalInterface
     private interface ItemReader<T> {
@@ -256,8 +258,8 @@ public class WADData {
 
     private <T> List<T> getLumpData(ItemReader<T> readerFunc, int lumpIndexInDir, int numBytesPerItem) throws IOException {
         if (lumpIndexInDir < 0 || lumpIndexInDir >= reader.getDirectory().size()) {
-            System.err.println("Warning: Invalid lump index: " + lumpIndexInDir);
-            return new ArrayList<>(); // Return empty list or throw
+            LOGGER.warning("Invalid lump index: " + lumpIndexInDir);
+            return new ArrayList<>();
         }
         LumpInfo lumpInfo = reader.getDirectory().get(lumpIndexInDir);
         int count = lumpInfo.lumpSize / numBytesPerItem;

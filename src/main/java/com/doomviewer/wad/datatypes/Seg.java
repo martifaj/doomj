@@ -1,5 +1,5 @@
 package com.doomviewer.wad.datatypes;
-import com.doomviewer.core.math.Vector2D;
+import com.doomviewer.misc.math.Vector2D;
 
 public class Seg {
     public short startVertexId;
