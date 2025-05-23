@@ -48,11 +48,15 @@ public class ViewRenderer {
     }
 
     public void drawSprite(Graphics2D g2d) { // Takes Graphics2D for final screen blit
-        BufferedImage spriteImg = sprites.get("SHTGA0"); // Example sprite
-        if (spriteImg != null) {
-            int x = Constants.H_WIDTH - spriteImg.getWidth() / 2;
-            int y = Constants.HEIGHT - spriteImg.getHeight();
-            g2d.drawImage(spriteImg, x, y, null);
+        // Draw current animated weapon sprite using Doom state machine
+        if (player != null) {
+            String weaponSprite = player.getCurrentWeaponSprite();
+            BufferedImage spriteImg = sprites.get(weaponSprite);
+            if (spriteImg != null) {
+                int x = Constants.H_WIDTH - spriteImg.getWidth() / 2;
+                int y = Constants.HEIGHT - spriteImg.getHeight();
+                g2d.drawImage(spriteImg, x, y, null);
+            }
         }
     }
 
@@ -171,6 +175,9 @@ public class ViewRenderer {
             
             double scale = Constants.SCREEN_DIST / camSpaceZ_Depth;
             
+            // Calculate sprite depth to match wall depth format (smaller = closer)
+            double spriteDepth = Constants.SCREEN_DIST / scale; // Same as camSpaceZ_Depth, but explicit calculation
+            
             // Get original sprite dimensions
             AssetData.Patch patch = assetData.getSpritePatch(obj.currentSpriteLumpName);
             double spriteOrigWidth = (patch != null) ? patch.header.width : spriteImg.getWidth() / Constants.SCALE;
@@ -197,11 +204,15 @@ public class ViewRenderer {
                 continue;
             }
             
-            // Get light level (simplified - should use current sector)
-            int lightLevel = obj.currentSpriteFullBright ? 255 : 128; // Simplified lighting
+            // Get light level from sector or use fullbright
+            int sectorLightLevel = 200; // Default good lighting for visibility
+            if (engine.getWadData().sectors != null && !engine.getWadData().sectors.isEmpty()) {
+                sectorLightLevel = (int)(engine.getWadData().sectors.get(0).lightLevel * 255.0);
+            }
+            int lightLevel = obj.currentSpriteFullBright ? 255 : sectorLightLevel;
             
             VisSprite visSprite = new VisSprite(obj, screenX1, screenX2, screenY1, screenY2, 
-                                              scale, camSpaceZ_Depth, spriteImg, 
+                                              scale, spriteDepth, spriteImg, 
                                               obj.currentSpriteFullBright, lightLevel, Constants.HEIGHT);
             visSprites.add(visSprite);
         }

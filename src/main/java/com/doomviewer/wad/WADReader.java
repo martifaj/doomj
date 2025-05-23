@@ -35,7 +35,7 @@ public class WADReader implements AutoCloseable {
         this.directory = readDirectory();
     }
 
-    private byte[] readBytesFromFile(long offset, int numBytes) throws IOException {
+    public byte[] readBytesFromFile(long offset, int numBytes) throws IOException {
         wadFile.seek(offset);
         byte[] buffer = new byte[numBytes];
         wadFile.readFully(buffer);

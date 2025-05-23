@@ -1,5 +1,7 @@
 package com.doomviewer.game;
 
+import com.doomviewer.game.objects.StateDef;
+import com.doomviewer.game.objects.StateNum;
 import com.doomviewer.misc.InputHandler;
 import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.math.Vector2D;
@@ -9,6 +11,8 @@ import com.doomviewer.wad.assets.AssetData;
 import com.doomviewer.wad.datatypes.Thing;
 
 import java.awt.event.KeyEvent;
+import java.util.EnumMap;
+import java.util.Map;
 
 public class Player extends MapObject {
     private DoomEngine engine; // For direct access like input, delta time
@@ -17,6 +21,20 @@ public class Player extends MapObject {
     private final double DIAG_MOVE_CORR = 1 / Math.sqrt(2);
     public double height; // Player's eye height from the base (0 level)
     public double floorHeight; // Height of the floor under the player
+    
+    // Weapons and HUD
+    private WeaponType currentWeapon;
+    private boolean[] ownedWeapons;
+    private Map<AmmoType, Integer> ammo;
+    private PlayerHUD hud;
+    
+    // Weapon state machine (following original Doom)
+    private StateNum weaponState;
+    private StateDef weaponStateDef;
+    private int weaponTics;
+    private boolean attackdown; // Track if fire button is held
+    private boolean pendingweapon; // Weapon switch pending
+    private WeaponType pendingWeaponType;
 
     public Player(DoomEngine engine, Thing playerThing, GameDefinitions gameDefinitions, AssetData assetData) {
         super(playerThing, gameDefinitions, assetData, engine); // This sets up pos, angle, info, type, health, flags, initial state
@@ -41,6 +59,9 @@ public class Player extends MapObject {
 
         this.height = Constants.PLAYER_HEIGHT; // Initial height relative to floor
         this.floorHeight = 0;
+        
+        // Initialize weapons and ammo
+        initializeWeaponsAndAmmo();
     }
 
     // Override update from MapObject. Player doesn't use the generic state machine for its primary logic.
@@ -51,6 +72,9 @@ public class Player extends MapObject {
         // a simplified version of the state machine, but movement/actions are direct.
         updateHeightAndZ();
         control();
+        
+        // Handle weapon input and update weapon state machine
+        updateWeaponStateMachine();
         
         // CRITICAL: Sync Player position with MapObject position for AI targeting
         super.pos.x = this.pos.x;
@@ -76,15 +100,25 @@ public class Player extends MapObject {
         double rotSpeed = Constants.PLAYER_ROT_SPEED * engine.getDeltaTime();
         InputHandler input = engine.getInputHandler();
 
-        if (input.isKeyPressed(KeyEvent.VK_LEFT)) this.angle += rotSpeed;
-        if (input.isKeyPressed(KeyEvent.VK_RIGHT)) this.angle -= rotSpeed;
+        // Check if Shift is pressed for running (double speed)
+        boolean isRunning = input.isKeyPressed(KeyEvent.VK_SHIFT);
+        if (isRunning) {
+            speed *= 2.0; // Double speed when running
+            rotSpeed *= 1.5; // Slightly faster rotation when running
+        }
+
+        // Q/E for rotation
+        if (input.isKeyPressed(KeyEvent.VK_Q)) this.angle += rotSpeed;
+        if (input.isKeyPressed(KeyEvent.VK_E)) this.angle -= rotSpeed;
         this.angle = (this.angle % 360.0 + 360.0) % 360.0;
 
         Vector2D inc = new Vector2D(0, 0);
-        if (input.isKeyPressed(KeyEvent.VK_W)) inc.x += speed;
-        if (input.isKeyPressed(KeyEvent.VK_S)) inc.x -= speed;
-        if (input.isKeyPressed(KeyEvent.VK_A)) inc.y += speed; // Strafe Left
-        if (input.isKeyPressed(KeyEvent.VK_D)) inc.y -= speed; // Strafe Right
+        // Forward/Backward: W/S and Up/Down arrows
+        if (input.isKeyPressed(KeyEvent.VK_W) || input.isKeyPressed(KeyEvent.VK_UP)) inc.x += speed;      // Forward
+        if (input.isKeyPressed(KeyEvent.VK_S) || input.isKeyPressed(KeyEvent.VK_DOWN)) inc.x -= speed;    // Backward
+        // Strafing: A/D and Left/Right arrows
+        if (input.isKeyPressed(KeyEvent.VK_A) || input.isKeyPressed(KeyEvent.VK_LEFT)) inc.y += speed;   // Strafe Left
+        if (input.isKeyPressed(KeyEvent.VK_D) || input.isKeyPressed(KeyEvent.VK_RIGHT)) inc.y -= speed;  // Strafe Right
 
         if (inc.x != 0 && inc.y != 0) inc = inc.scale(DIAG_MOVE_CORR);
 
@@ -182,5 +216,206 @@ public class Player extends MapObject {
     public MapObject getMapObject() {
         return this; // Player extends MapObject
     }
+    
+    private void initializeWeaponsAndAmmo() {
+        // Initialize weapon ownership - give all weapons for testing
+        ownedWeapons = new boolean[WeaponType.values().length];
+        ownedWeapons[WeaponType.PISTOL.id] = true;
+        ownedWeapons[WeaponType.SHOTGUN.id] = true;
+        ownedWeapons[WeaponType.CHAINGUN.id] = true;
+        ownedWeapons[WeaponType.ROCKET_LAUNCHER.id] = true;
+        ownedWeapons[WeaponType.PLASMA_RIFLE.id] = true;
+        ownedWeapons[WeaponType.BFG.id] = true;
+        currentWeapon = WeaponType.PISTOL;
+        
+        // Initialize ammo - give plenty for testing
+        ammo = new EnumMap<>(AmmoType.class);
+        ammo.put(AmmoType.BULLETS, 200);    // Max bullets
+        ammo.put(AmmoType.SHELLS, 50);      // Max shells
+        ammo.put(AmmoType.ROCKETS, 50);     // Max rockets
+        ammo.put(AmmoType.CELLS, 300);      // Max cells
+        
+        // Initialize HUD
+        hud = new PlayerHUD(this);
+        
+        // Initialize weapon state machine
+        weaponState = getReadyStateForWeapon(currentWeapon);
+        weaponStateDef = getGameDefinitions().getState(weaponState);
+        weaponTics = weaponStateDef.tics;
+        attackdown = false;
+        pendingweapon = false;
+    }
+    
+    public WeaponType getCurrentWeapon() {
+        return currentWeapon;
+    }
+    
+    public int getAmmo(AmmoType ammoType) {
+        return ammo.getOrDefault(ammoType, 0);
+    }
+    
+    public void addAmmo(AmmoType ammoType, int amount) {
+        int current = ammo.getOrDefault(ammoType, 0);
+        int newAmount = Math.min(current + amount, ammoType.maxAmmo);
+        ammo.put(ammoType, newAmount);
+    }
+    
+    public boolean hasWeapon(WeaponType weapon) {
+        return ownedWeapons[weapon.id];
+    }
+    
+    public void giveWeapon(WeaponType weapon) {
+        ownedWeapons[weapon.id] = true;
+    }
+    
+    public boolean switchWeapon(WeaponType weapon) {
+        if (hasWeapon(weapon) && currentWeapon != weapon) {
+            // For now, do immediate weapon switch (can add lowering/raising animation later)
+            currentWeapon = weapon;
+            setWeaponState(getReadyStateForWeapon(currentWeapon));
+            System.out.println("Switched to " + weapon.name);
+            return true;
+        }
+        return false;
+    }
+    
+    private void updateWeaponStateMachine() {
+        InputHandler input = engine.getInputHandler();
+        
+        // Handle weapon switching (1-6 keys)
+        if (input.isKeyPressed(KeyEvent.VK_1)) switchWeapon(WeaponType.PISTOL);
+        if (input.isKeyPressed(KeyEvent.VK_2)) switchWeapon(WeaponType.SHOTGUN);
+        if (input.isKeyPressed(KeyEvent.VK_3)) switchWeapon(WeaponType.CHAINGUN);
+        if (input.isKeyPressed(KeyEvent.VK_4)) switchWeapon(WeaponType.ROCKET_LAUNCHER);
+        if (input.isKeyPressed(KeyEvent.VK_5)) switchWeapon(WeaponType.PLASMA_RIFLE);
+        if (input.isKeyPressed(KeyEvent.VK_6)) switchWeapon(WeaponType.BFG);
+        
+        // Track attack button state
+        boolean firePressed = input.isKeyPressed(KeyEvent.VK_SPACE) || input.isKeyPressed(KeyEvent.VK_CONTROL);
+        
+        if (firePressed && !attackdown) {
+            attackdown = true;
+            // Attempt to fire if weapon is ready
+            if (isWeaponReady()) {
+                startWeaponFiring();
+            }
+        } else if (!firePressed) {
+            attackdown = false;
+        }
+        
+        // Update weapon state machine
+        if (weaponTics > 0) {
+            weaponTics--;
+        }
+        
+        if (weaponTics <= 0) {
+            // Execute weapon action and transition to next state
+            if (weaponStateDef.action != null) {
+                weaponStateDef.action.execute(this, engine);
+            }
+            
+            setWeaponState(weaponStateDef.nextState);
+        }
+    }
+    
+    private boolean isWeaponReady() {
+        return weaponState == getReadyStateForWeapon(currentWeapon);
+    }
+    
+    private void startWeaponFiring() {
+        AmmoType requiredAmmo = getAmmoTypeForWeapon(currentWeapon);
+        int currentAmmoCount = getAmmo(requiredAmmo);
+        
+        if (currentAmmoCount >= currentWeapon.ammoPerShot) {
+            // Consume ammo
+            ammo.put(requiredAmmo, currentAmmoCount - currentWeapon.ammoPerShot);
+            
+            // Start weapon firing state
+            setWeaponState(getFireStateForWeapon(currentWeapon));
+            
+            System.out.println("Player fires " + currentWeapon.name + "! Ammo remaining: " + getAmmo(requiredAmmo));
+        } else {
+            System.out.println("Out of ammo for " + currentWeapon.name + "!");
+        }
+    }
+    
+    private void setWeaponState(StateNum newState) {
+        weaponState = newState;
+        weaponStateDef = getGameDefinitions().getState(weaponState);
+        weaponTics = weaponStateDef.tics;
+    }
+    
+    private StateNum getReadyStateForWeapon(WeaponType weapon) {
+        switch (weapon) {
+            case PISTOL: return StateNum.S_PISTOL;
+            case SHOTGUN: return StateNum.S_SGUN;
+            case CHAINGUN: return StateNum.S_CHAIN;
+            case ROCKET_LAUNCHER: return StateNum.S_MISSILE;
+            case PLASMA_RIFLE: return StateNum.S_PLASMA;
+            case BFG: return StateNum.S_BFG;
+            default: return StateNum.S_PISTOL;
+        }
+    }
+    
+    private StateNum getFireStateForWeapon(WeaponType weapon) {
+        switch (weapon) {
+            case PISTOL: return StateNum.S_PISTOL1;
+            case SHOTGUN: return StateNum.S_SGUN1;
+            case CHAINGUN: return StateNum.S_CHAIN1;
+            case ROCKET_LAUNCHER: return StateNum.S_MISSILE1;
+            case PLASMA_RIFLE: return StateNum.S_PLASMA1;
+            case BFG: return StateNum.S_BFG1;
+            default: return StateNum.S_PISTOL1;
+        }
+    }
+    
+    
+    private AmmoType getAmmoTypeForWeapon(WeaponType weapon) {
+        switch (weapon) {
+            case PISTOL:
+            case CHAINGUN:
+                return AmmoType.BULLETS;
+            case SHOTGUN:
+                return AmmoType.SHELLS;
+            case ROCKET_LAUNCHER:
+                return AmmoType.ROCKETS;
+            case PLASMA_RIFLE:
+            case BFG:
+                return AmmoType.CELLS;
+            default:
+                return AmmoType.BULLETS;
+        }
+    }
+    
+    private double normalizeAngle(double angle) {
+        while (angle < -180) angle += 360;
+        while (angle > 180) angle -= 360;
+        return angle;
+    }
+    
+    public PlayerHUD getHUD() {
+        return hud;
+    }
+    
+    public String getCurrentWeaponSprite() {
+        if (weaponStateDef != null) {
+            // Generate weapon sprite name with rotation 0 instead of 1
+            char frameChar = (char) ('A' + weaponStateDef.getFrameIndex());
+            String spriteName = String.format("%s%c0", weaponStateDef.spriteName.getName(), frameChar);
+            System.out.println("Debug: Weapon sprite name: " + spriteName);
+            return spriteName;
+        }
+        System.out.println("Debug: Using fallback sprite: " + currentWeapon.spriteName);
+        return currentWeapon.spriteName; // Fallback
+    }
+    
+    public boolean isAttackDown() {
+        return attackdown;
+    }
+    
+    public GameDefinitions getGameDefinitions() {
+        return super.gameDefinitions;
+    }
+    
 }
 

@@ -1,5 +1,6 @@
 package com.doomviewer.game.objects;
 
+import com.doomviewer.audio.SoundKey;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +33,10 @@ public class GameDefinitions {
         populateImp();       // Imp
         populateDemon();     // Demon/Spectre
         populateProjectiles(); // Projectiles and effects
+        populateWeapons();   // Weapon states
+        populateItems();     // Health, ammo, armor, keys
+        populateDecorations(); // Decorative objects
+        populateSpecialObjects(); // Teleporters, multiplayer starts
         // Add more initializations for other mobj types and their states
     }
 
@@ -58,16 +63,21 @@ public class GameDefinitions {
         MobjInfoDef playerInfo = new MobjInfoDef(
                 "MT_PLAYER", TYPE_PLAYER_START_1,
                 StateNum.S_PLAY, 100, StateNum.S_PLAY_RUN1, // spawnstate, spawnhealth, seestate
+                SoundKey.SFX_NONE, // seeSound
                 0, // reactiontime
+                SoundKey.SFX_NONE, // attackSound
                 StateNum.S_PLAY_PAIN, 255, // painstate, painchance
+                SoundKey.SFX_PLPAIN, // painSound
                 StateNum.S_NULL,      // meleestate (player uses weapons differently)
                 StateNum.S_PLAY_ATK1, // missilestate (player uses weapons differently)
                 StateNum.S_PLAY_DIE1, StateNum.S_PLAY_XDIE1, // deathstate, xdeathstate
+                SoundKey.SFX_PLDETH, // deathSound
                 0, // speed (player handles its own movement speed)
                 16.0, // radius (Doom default)
                 56.0, // height (Doom default total height)
                 100,  // mass
                 0,    // damage (player deals damage via weapons)
+                SoundKey.SFX_NONE, // activeSound
                 MobjFlags.MF_SOLID | MobjFlags.MF_SHOOTABLE | MobjFlags.MF_DROPOFF | MobjFlags.MF_PICKUP | MobjFlags.MF_NOCOUNT, // MF_NOCOUNT if player shouldn't count for kill %
                 StateNum.S_NULL // raisestate
         );
@@ -217,9 +227,16 @@ public class GameDefinitions {
         // MobjInfo for MT_POSSESSED (Zombieman)
         MobjInfoDef possessedInfo = new MobjInfoDef(
                 "MT_POSSESSED", TYPE_POSSESSED, StateNum.S_POSS_STND, 20, StateNum.S_POSS_RUN1,
-                8, StateNum.S_POSS_PAIN, 200, StateNum.S_NULL, // Melee state S_NULL
+                SoundKey.SFX_POSIT1, // seeSound
+                8, // reactiontime
+                SoundKey.SFX_PISTOL, // attackSound
+                StateNum.S_POSS_PAIN, 200, // painstate, painchance
+                SoundKey.SFX_PLPAIN, // painSound (using player pain sound for now)
+                StateNum.S_NULL, // Melee state S_NULL
                 StateNum.S_POSS_ATK1, StateNum.S_POSS_DIE1, StateNum.S_POSS_XDIE1,
+                SoundKey.SFX_PODTH1, // deathSound
                 8, 20.0, 56.0, 100, 0, // speed, radius, height, mass, damage
+                SoundKey.SFX_NONE, // activeSound
                 MobjFlags.MF_SOLID | MobjFlags.MF_SHOOTABLE | MobjFlags.MF_COUNTKILL,
                 StateNum.S_POSS_RAISE1
         );
@@ -279,9 +296,16 @@ public class GameDefinitions {
         // MobjInfo for MT_SHOTGUY (Shotgun Guy)
         MobjInfoDef shotguyInfo = new MobjInfoDef(
                 "MT_SHOTGUY", TYPE_SHOTGUY, StateNum.S_SPOS_STND, 30, StateNum.S_SPOS_RUN1,
-                8, StateNum.S_SPOS_PAIN, 170, StateNum.S_NULL, // Melee state S_NULL
+                SoundKey.SFX_POSIT2, // seeSound
+                8, // reactiontime
+                SoundKey.SFX_SHOTGN, // attackSound
+                StateNum.S_SPOS_PAIN, 170, // painstate, painchance
+                SoundKey.SFX_PLPAIN, // painSound
+                StateNum.S_NULL, // Melee state S_NULL
                 StateNum.S_SPOS_ATK1, StateNum.S_SPOS_DIE1, StateNum.S_SPOS_XDIE1,
+                SoundKey.SFX_PODTH2, // deathSound
                 8, 20.0, 56.0, 100, 0, // speed, radius, height, mass, damage
+                SoundKey.SFX_NONE, // activeSound
                 MobjFlags.MF_SOLID | MobjFlags.MF_SHOOTABLE | MobjFlags.MF_COUNTKILL,
                 StateNum.S_SPOS_RAISE1
         );
@@ -315,9 +339,9 @@ public class GameDefinitions {
         addState(StateNum.S_TROO_MISS2, SpriteNames.TROO, 9, 8, Actions::A_TroopMissile, StateNum.S_TROO_MISS3);
         addState(StateNum.S_TROO_MISS3, SpriteNames.TROO, 8, 8, Actions.NULL_ACTION, StateNum.S_TROO_RUN1);
 
-        // Pain: 2 frames (10,10), tics (2,2) - TROOK
-        addState(StateNum.S_TROO_PAIN, SpriteNames.TROO, 10, 2, Actions.NULL_ACTION, StateNum.S_TROO_PAIN2);
-        addState(StateNum.S_TROO_PAIN2, SpriteNames.TROO, 10, 2, Actions::A_Pain, StateNum.S_TROO_RUN1);
+        // Pain: 2 frames (6,6), tics (3,3) - TROOG (use running frame instead of potentially problematic K frame)
+        addState(StateNum.S_TROO_PAIN, SpriteNames.TROO, 6, 3, Actions::A_Pain, StateNum.S_TROO_PAIN2);
+        addState(StateNum.S_TROO_PAIN2, SpriteNames.TROO, 6, 3, Actions.NULL_ACTION, StateNum.S_TROO_RUN1);
 
         // Die: 6 frames (11,12,13,14,15,16), tics (8,8,6,6,6,-1) - TROOL to TROOQ
         addState(StateNum.S_TROO_DIE1, SpriteNames.TROO, 11, 8, Actions.NULL_ACTION, StateNum.S_TROO_DIE2);
@@ -347,9 +371,16 @@ public class GameDefinitions {
         // MobjInfo for MT_TROOP (Imp)
         MobjInfoDef troopInfo = new MobjInfoDef(
                 "MT_TROOP", TYPE_TROOP, StateNum.S_TROO_STND, 60, StateNum.S_TROO_RUN1,
-                8, StateNum.S_TROO_PAIN, 200, StateNum.S_TROO_ATK1, // melee attack
+                SoundKey.SFX_BGSIT1, // seeSound
+                8, // reactiontime
+                SoundKey.SFX_CLAW, // attackSound
+                StateNum.S_TROO_PAIN, 200, // painstate, painchance
+                SoundKey.SFX_BGPAIN, // painSound
+                StateNum.S_TROO_ATK1, // melee attack
                 StateNum.S_TROO_MISS1, StateNum.S_TROO_DIE1, StateNum.S_TROO_XDIE1,
+                SoundKey.SFX_BGDTH1, // deathSound
                 8, 20.0, 56.0, 100, 3, // speed, radius, height, mass, damage (melee)
+                SoundKey.SFX_BGACT, // activeSound
                 MobjFlags.MF_SOLID | MobjFlags.MF_SHOOTABLE | MobjFlags.MF_COUNTKILL,
                 StateNum.S_TROO_RAISE1
         );
@@ -401,9 +432,16 @@ public class GameDefinitions {
         // MobjInfo for MT_SERGEANT (Demon/Pinky)
         MobjInfoDef demonInfo = new MobjInfoDef(
                 "MT_SERGEANT", TYPE_SERGEANT, StateNum.S_SARG_STND, 150, StateNum.S_SARG_RUN1,
-                8, StateNum.S_SARG_PAIN, 180, StateNum.S_SARG_ATK1, // melee only
-                StateNum.S_NULL, StateNum.S_SARG_DIE1, StateNum.S_NULL, // no xdeath
+                SoundKey.SFX_SGTSIT, // seeSound
+                8, // reactiontime
+                SoundKey.SFX_SGTATK, // attackSound
+                StateNum.S_SARG_PAIN, 180, // painstate, painchance
+                SoundKey.SFX_PLPAIN, // painSound
+                StateNum.S_SARG_ATK1, // melee only
+                StateNum.S_NULL, StateNum.S_SARG_DIE1, StateNum.S_NULL, // no missile, death, xdeath
+                SoundKey.SFX_PODTH3, // deathSound
                 10, 30.0, 56.0, 400, 4, // speed, radius, height, mass, damage (strong bite)
+                SoundKey.SFX_NONE, // activeSound
                 MobjFlags.MF_SOLID | MobjFlags.MF_SHOOTABLE | MobjFlags.MF_COUNTKILL,
                 StateNum.S_SARG_RAISE1
         );
@@ -424,9 +462,16 @@ public class GameDefinitions {
         // MobjInfo for MT_TROOPSHOT (Imp Fireball)
         MobjInfoDef fireballInfo = new MobjInfoDef(
                 "MT_TROOPSHOT", -1, StateNum.S_TBALL1, 1000, StateNum.S_NULL,
-                8, StateNum.S_NULL, 0, StateNum.S_NULL,
-                StateNum.S_NULL, StateNum.S_TBALLEX1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, // seeSound
+                8, // reactiontime
+                SoundKey.SFX_NONE, // attackSound
+                StateNum.S_NULL, 0, // painstate, painchance
+                SoundKey.SFX_NONE, // painSound
+                StateNum.S_NULL, // meleestate
+                StateNum.S_NULL, StateNum.S_TBALLEX1, StateNum.S_NULL, // missile, death, xdeath
+                SoundKey.SFX_FIRXPL, // deathSound (fireball explosion)
                 10, 6.0, 8.0, 100, 3, // speed, radius, height, mass, damage
+                SoundKey.SFX_NONE, // activeSound
                 MobjFlags.MF_NOBLOCKMAP | MobjFlags.MF_MISSILE | MobjFlags.MF_DROPOFF | MobjFlags.MF_NOGRAVITY,
                 StateNum.S_NULL
         );
@@ -441,9 +486,16 @@ public class GameDefinitions {
         // MobjInfo for MT_PUFF (Bullet Impact)
         MobjInfoDef puffInfo = new MobjInfoDef(
                 "MT_PUFF", -1, StateNum.S_PUFF1, 1000, StateNum.S_NULL,
-                0, StateNum.S_NULL, 0, StateNum.S_NULL,
-                StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, // seeSound
+                0, // reactiontime
+                SoundKey.SFX_NONE, // attackSound
+                StateNum.S_NULL, 0, // painstate, painchance
+                SoundKey.SFX_NONE, // painSound
+                StateNum.S_NULL, // meleestate
+                StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, // missile, death, xdeath
+                SoundKey.SFX_NONE, // deathSound
                 0, 20.0, 16.0, 100, 0, // no speed, radius, height, mass, no damage
+                SoundKey.SFX_NONE, // activeSound
                 MobjFlags.MF_NOBLOCKMAP | MobjFlags.MF_NOGRAVITY,
                 StateNum.S_NULL
         );
@@ -457,9 +509,16 @@ public class GameDefinitions {
         // MobjInfo for MT_BLOOD (Blood Splat)
         MobjInfoDef bloodInfo = new MobjInfoDef(
                 "MT_BLOOD", -1, StateNum.S_BLOOD1, 1000, StateNum.S_NULL,
-                0, StateNum.S_NULL, 0, StateNum.S_NULL,
-                StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, // seeSound
+                0, // reactiontime
+                SoundKey.SFX_NONE, // attackSound
+                StateNum.S_NULL, 0, // painstate, painchance
+                SoundKey.SFX_NONE, // painSound
+                StateNum.S_NULL, // meleestate
+                StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, // missile, death, xdeath
+                SoundKey.SFX_NONE, // deathSound
                 0, 20.0, 16.0, 100, 0, // no speed, radius, height, mass, no damage
+                SoundKey.SFX_NONE, // activeSound
                 MobjFlags.MF_NOBLOCKMAP | MobjFlags.MF_NOGRAVITY,
                 StateNum.S_NULL
         );
@@ -484,6 +543,219 @@ public class GameDefinitions {
             return mobjInfos.get(type);
         }
         return null;
+    }
+    
+    private void populateWeapons() {
+        // Pistol weapon states (following original Doom info.c)
+        addState(StateNum.S_PISTOL, SpriteNames.PISG, 0, 1, Actions::A_WeaponReady, StateNum.S_PISTOL);
+        addState(StateNum.S_PISTOL1, SpriteNames.PISG, 0, 4, Actions.NULL_ACTION, StateNum.S_PISTOL2);
+        addState(StateNum.S_PISTOL2, SpriteNames.PISG, 1, 6, Actions::A_FirePistol, StateNum.S_PISTOL3);
+        addState(StateNum.S_PISTOL3, SpriteNames.PISG, 2, 4, Actions.NULL_ACTION, StateNum.S_PISTOL4);
+        addState(StateNum.S_PISTOL4, SpriteNames.PISG, 1, 5, Actions::A_ReFire, StateNum.S_PISTOL);
+        addState(StateNum.S_PISTOLFLASH, SpriteNames.PISF, 0 | 0x8000, 7, Actions::A_Light1, StateNum.S_NULL);
+        
+        // Shotgun weapon states
+        addState(StateNum.S_SGUN, SpriteNames.SHTG, 0, 1, Actions::A_WeaponReady, StateNum.S_SGUN);
+        addState(StateNum.S_SGUN1, SpriteNames.SHTG, 0, 3, Actions.NULL_ACTION, StateNum.S_SGUN2);
+        addState(StateNum.S_SGUN2, SpriteNames.SHTG, 0, 7, Actions::A_FireShotgun, StateNum.S_SGUN3);
+        addState(StateNum.S_SGUN3, SpriteNames.SHTG, 1, 5, Actions.NULL_ACTION, StateNum.S_SGUN4);
+        addState(StateNum.S_SGUN4, SpriteNames.SHTG, 2, 5, Actions.NULL_ACTION, StateNum.S_SGUN5);
+        addState(StateNum.S_SGUN5, SpriteNames.SHTG, 3, 4, Actions.NULL_ACTION, StateNum.S_SGUN6);
+        addState(StateNum.S_SGUN6, SpriteNames.SHTG, 2, 5, Actions.NULL_ACTION, StateNum.S_SGUN7);
+        addState(StateNum.S_SGUN7, SpriteNames.SHTG, 1, 5, Actions.NULL_ACTION, StateNum.S_SGUN8);
+        addState(StateNum.S_SGUN8, SpriteNames.SHTG, 0, 3, Actions.NULL_ACTION, StateNum.S_SGUN9);
+        addState(StateNum.S_SGUN9, SpriteNames.SHTG, 0, 7, Actions::A_ReFire, StateNum.S_SGUN);
+        addState(StateNum.S_SGUNFLASH1, SpriteNames.SHTF, 0 | 0x8000, 4, Actions::A_Light1, StateNum.S_SGUNFLASH2);
+        addState(StateNum.S_SGUNFLASH2, SpriteNames.SHTF, 1 | 0x8000, 3, Actions::A_Light2, StateNum.S_NULL);
+        
+        // Chaingun weapon states  
+        addState(StateNum.S_CHAIN, SpriteNames.MGUN, 0, 1, Actions::A_WeaponReady, StateNum.S_CHAIN);
+        addState(StateNum.S_CHAIN1, SpriteNames.MGUN, 0, 4, Actions::A_FireCGun, StateNum.S_CHAIN2);
+        addState(StateNum.S_CHAIN2, SpriteNames.MGUN, 1, 4, Actions::A_FireCGun, StateNum.S_CHAIN3);
+        addState(StateNum.S_CHAIN3, SpriteNames.MGUN, 0, 0, Actions::A_ReFire, StateNum.S_CHAIN);
+        addState(StateNum.S_CHAINFLASH1, SpriteNames.CHGF, 0 | 0x8000, 5, Actions::A_Light1, StateNum.S_CHAINFLASH2);
+        addState(StateNum.S_CHAINFLASH2, SpriteNames.CHGF, 1 | 0x8000, 5, Actions::A_Light2, StateNum.S_NULL);
+        
+        // Rocket launcher weapon states
+        addState(StateNum.S_MISSILE, SpriteNames.LAUN, 0, 1, Actions::A_WeaponReady, StateNum.S_MISSILE);
+        addState(StateNum.S_MISSILE1, SpriteNames.LAUN, 1, 8, Actions::A_FireMissile, StateNum.S_MISSILE2);
+        addState(StateNum.S_MISSILE2, SpriteNames.LAUN, 1, 12, Actions.NULL_ACTION, StateNum.S_MISSILE3);
+        addState(StateNum.S_MISSILE3, SpriteNames.LAUN, 0, 0, Actions::A_ReFire, StateNum.S_MISSILE);
+        addState(StateNum.S_MISSILEFLASH1, SpriteNames.MISL, 0 | 0x8000, 3, Actions::A_Light1, StateNum.S_MISSILEFLASH2);
+        addState(StateNum.S_MISSILEFLASH2, SpriteNames.MISL, 1 | 0x8000, 4, Actions.NULL_ACTION, StateNum.S_MISSILEFLASH3);
+        addState(StateNum.S_MISSILEFLASH3, SpriteNames.MISL, 2 | 0x8000, 4, Actions::A_Light2, StateNum.S_MISSILEFLASH4);
+        addState(StateNum.S_MISSILEFLASH4, SpriteNames.MISL, 3 | 0x8000, 4, Actions::A_Light2, StateNum.S_NULL);
+        
+        // Plasma rifle weapon states
+        addState(StateNum.S_PLASMA, SpriteNames.PLAS, 0, 1, Actions::A_WeaponReady, StateNum.S_PLASMA);
+        addState(StateNum.S_PLASMA1, SpriteNames.PLAS, 0, 3, Actions::A_FirePlasma, StateNum.S_PLASMA2);
+        addState(StateNum.S_PLASMA2, SpriteNames.PLAS, 1, 20, Actions::A_ReFire, StateNum.S_PLASMA);
+        addState(StateNum.S_PLASMAFLASH1, SpriteNames.PLSF, 0 | 0x8000, 4, Actions::A_Light1, StateNum.S_PLASMAFLASH2);
+        addState(StateNum.S_PLASMAFLASH2, SpriteNames.PLSF, 1 | 0x8000, 4, Actions::A_Light1, StateNum.S_NULL);
+        
+        // BFG weapon states
+        addState(StateNum.S_BFG, SpriteNames.BFUG, 0, 1, Actions::A_WeaponReady, StateNum.S_BFG);
+        addState(StateNum.S_BFG1, SpriteNames.BFUG, 0, 20, Actions.NULL_ACTION, StateNum.S_BFG2);
+        addState(StateNum.S_BFG2, SpriteNames.BFUG, 0, 10, Actions::A_FireBFG, StateNum.S_BFG3);
+        addState(StateNum.S_BFG3, SpriteNames.BFUG, 1, 10, Actions.NULL_ACTION, StateNum.S_BFG4);
+        addState(StateNum.S_BFG4, SpriteNames.BFUG, 1, 20, Actions::A_ReFire, StateNum.S_BFG);
+        addState(StateNum.S_BFGFLASH1, SpriteNames.BFGF, 0 | 0x8000, 11, Actions::A_Light1, StateNum.S_BFGFLASH2);
+        addState(StateNum.S_BFGFLASH2, SpriteNames.BFGF, 1 | 0x8000, 6, Actions::A_Light2, StateNum.S_NULL);
+    }
+    
+    private void populateItems() {
+        // Add state definitions for items
+        addState(StateNum.S_STIM, SpriteNames.STIM, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_MEDI, SpriteNames.MEDI, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_ARM1, SpriteNames.ARM1, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_ARM2, SpriteNames.ARM2, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_BON1, SpriteNames.BON1, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_BON2, SpriteNames.BON2, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_CLIP, SpriteNames.CLIP, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_SHEL, SpriteNames.SHEL, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        
+        // Health items
+        MobjInfoDef stimpakInfo = new MobjInfoDef(
+                "MT_STIMPACK", 2011, StateNum.S_STIM, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SPECIAL, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_STIMPACK, stimpakInfo);
+        doomedNumToMobjType.put(2011, MobjType.MT_STIMPACK);
+        
+        MobjInfoDef medikitInfo = new MobjInfoDef(
+                "MT_MEDIKIT", 2012, StateNum.S_MEDI, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SPECIAL, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_MEDIKIT, medikitInfo);
+        doomedNumToMobjType.put(2012, MobjType.MT_MEDIKIT);
+        
+        // Armor
+        MobjInfoDef greenArmorInfo = new MobjInfoDef(
+                "MT_GREENARMOR", 2018, StateNum.S_ARM1, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SPECIAL, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_GREENARMOR, greenArmorInfo);
+        doomedNumToMobjType.put(2018, MobjType.MT_GREENARMOR);
+        
+        // Ammo
+        MobjInfoDef clipInfo = new MobjInfoDef(
+                "MT_CLIP", 2007, StateNum.S_CLIP, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SPECIAL, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_CLIP, clipInfo);
+        doomedNumToMobjType.put(2007, MobjType.MT_CLIP);
+        
+        MobjInfoDef shellsInfo = new MobjInfoDef(
+                "MT_SHELLS", 2008, StateNum.S_SHEL, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SPECIAL, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_SHELLS, shellsInfo);
+        doomedNumToMobjType.put(2008, MobjType.MT_SHELLS);
+        
+        // Health bonus
+        MobjInfoDef healthBonusInfo = new MobjInfoDef(
+                "MT_HEALTH_BONUS", 2014, StateNum.S_BON1, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SPECIAL | MobjFlags.MF_COUNTITEM, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_HEALTH_BONUS, healthBonusInfo);
+        doomedNumToMobjType.put(2014, MobjType.MT_HEALTH_BONUS);
+        
+        // Armor bonus  
+        MobjInfoDef armorBonusInfo = new MobjInfoDef(
+                "MT_ARMOR_BONUS", 2015, StateNum.S_BON2, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SPECIAL | MobjFlags.MF_COUNTITEM, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_ARMOR_BONUS, armorBonusInfo);
+        doomedNumToMobjType.put(2015, MobjType.MT_ARMOR_BONUS);
+    }
+    
+    private void populateDecorations() {
+        // Add state definitions for decorations
+        addState(StateNum.S_BAR1, SpriteNames.BAR1, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_BEXP, SpriteNames.BEXP, 0, 5, Actions::A_Scream, StateNum.S_BEXP2);
+        addState(StateNum.S_BEXP2, SpriteNames.BEXP, 1, 5, Actions.NULL_ACTION, StateNum.S_BEXP3);
+        addState(StateNum.S_BEXP3, SpriteNames.BEXP, 2, 5, Actions.NULL_ACTION, StateNum.S_BEXP4);
+        addState(StateNum.S_BEXP4, SpriteNames.BEXP, 3, 10, Actions.NULL_ACTION, StateNum.S_BEXP5);
+        addState(StateNum.S_BEXP5, SpriteNames.BEXP, 4, 10, Actions.NULL_ACTION, StateNum.S_NULL);
+        addState(StateNum.S_ELEC, SpriteNames.ELEC, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL);
+        
+        // Explosive barrel
+        MobjInfoDef barrelInfo = new MobjInfoDef(
+                "MT_BARREL_EXPLOSIVE", 2035, StateNum.S_BAR1, 20, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 8, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_BEXP, StateNum.S_NULL,
+                SoundKey.SFX_BAREXP, 0, 10.0, 42.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SOLID | MobjFlags.MF_SHOOTABLE | MobjFlags.MF_NOBLOOD, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_BARREL_EXPLOSIVE, barrelInfo);
+        doomedNumToMobjType.put(2035, MobjType.MT_BARREL_EXPLOSIVE);
+        
+        // Dead marine (decoration)
+        MobjInfoDef deadMarineInfo = new MobjInfoDef(
+                "MT_DEAD_MARINE", 15, StateNum.S_PLAY_DIE7, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, 0, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_DEAD_MARINE, deadMarineInfo);
+        doomedNumToMobjType.put(15, MobjType.MT_DEAD_MARINE);
+        
+        // Tall techno pillar
+        MobjInfoDef techPillarInfo = new MobjInfoDef(
+                "MT_TECHPILLAR", 48, StateNum.S_ELEC, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 16.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_SOLID, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_TECHPILLAR, techPillarInfo);
+        doomedNumToMobjType.put(48, MobjType.MT_TECHPILLAR);
+    }
+    
+    private void populateSpecialObjects() {
+        // Deathmatch start
+        MobjInfoDef deathmatchStartInfo = new MobjInfoDef(
+                "MT_DEATHMATCH_START", 11, StateNum.S_NULL, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_NOSECTOR | MobjFlags.MF_NOBLOCKMAP, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_DEATHMATCH_START, deathmatchStartInfo);
+        doomedNumToMobjType.put(11, MobjType.MT_DEATHMATCH_START);
+        
+        // Teleporter destination
+        MobjInfoDef teleporterDestInfo = new MobjInfoDef(
+                "MT_TELEPORTER_DEST", 14, StateNum.S_NULL, -1, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
+                SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
+                SoundKey.SFX_NONE, MobjFlags.MF_NOSECTOR | MobjFlags.MF_NOBLOCKMAP, StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_TELEPORTER_DEST, teleporterDestInfo);
+        doomedNumToMobjType.put(14, MobjType.MT_TELEPORTER_DEST);
     }
 }
 

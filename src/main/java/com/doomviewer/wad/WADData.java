@@ -1,5 +1,7 @@
 package com.doomviewer.wad;
 
+import com.doomviewer.audio.SoundEngine;
+import com.doomviewer.audio.SoundKey;
 import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.wad.assets.AssetData;
 import com.doomviewer.wad.datatypes.*;
@@ -114,6 +116,9 @@ public class WADData {
         // Load assets (textures, sprites, palettes)
         // Pass the reader and its directory to AssetData
         this.assetData = new AssetData(this.reader, this.reader.getDirectory());
+        
+        // Load sounds
+        loadSounds();
 
         // It's important AssetData is created *before* closing the reader if it needs it.
         // The Python code closes reader after AssetData.
@@ -285,4 +290,26 @@ public class WADData {
     // Here, WADData owns the reader initially.
     // This method is not directly used by WADData itself after initialization, but AssetData might need it if it didn't get the directory.
     // AssetData now gets the directory, so it can implement its own getLumpIndex.
+    
+    private void loadSounds() {
+        SoundEngine soundEngine = SoundEngine.getInstance();
+        int soundsLoaded = 0;
+        
+        LOGGER.info("Loading sounds from WAD...");
+        
+        // Load all sound lumps (they start with DS)
+        for (LumpInfo lumpInfo : reader.getDirectory()) {
+            if (lumpInfo.lumpName.startsWith("DS") && lumpInfo.lumpSize > 0) {
+                try {
+                    byte[] soundData = reader.readBytesFromFile(lumpInfo.lumpOffset, lumpInfo.lumpSize);
+                    soundEngine.loadSound(lumpInfo.lumpName, soundData);
+                    soundsLoaded++;
+                } catch (IOException e) {
+                    LOGGER.warning("Failed to load sound: " + lumpInfo.lumpName + " - " + e.getMessage());
+                }
+            }
+        }
+        
+        LOGGER.info("Loaded " + soundsLoaded + " sounds from WAD");
+    }
 }

@@ -26,7 +26,7 @@ public class MapObject {
     public int thingFlags; // Added to store original Thing flags
 
     // Rendering related
-    private GameDefinitions gameDefinitions;
+    protected GameDefinitions gameDefinitions;
     private AssetData assetData;
     private final DoomEngine engine;
     public String currentSpriteLumpName;
@@ -48,7 +48,8 @@ public class MapObject {
     public int alertTics = 0; // How long to stay alert after losing sight of player
     public int attackCooldown = 0; // Prevent attacking too frequently
     private int debugCounter = 0; // Per-object debug counter
-    
+
+
     public enum AIState {
         IDLE,        // Standing still, not aware of player
         WANDERING,   // Moving randomly
@@ -698,6 +699,10 @@ public class MapObject {
             
             System.out.println(info.name + " explodes at (" + (int)pos.x + "," + (int)pos.y + ")!");
         }
+    }
+
+    public GameDefinitions getGameDefinitions() {
+        return gameDefinitions;
     }
 }
 

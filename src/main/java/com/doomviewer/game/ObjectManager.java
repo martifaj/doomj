@@ -133,6 +133,10 @@ public class ObjectManager {
         updateProjectiles(); // Update projectiles
     }
 
+    public List<MapObject> getMapObjects() {
+        return mapObjects;
+    }
+
     public List<MapObject> getVisibleSortedMapObjects() {
         Player player = engine.getPlayer();
         if (player == null) return Collections.emptyList();

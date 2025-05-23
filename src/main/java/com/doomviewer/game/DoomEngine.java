@@ -200,9 +200,19 @@ public class DoomEngine extends JPanel implements Runnable {
         if (inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_ESCAPE)) {
             running = false;
         }
+        
+        // Test sound with T key
+        if (inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_T) && !testSoundDebounce) {
+            com.doomviewer.audio.SoundEngine.getInstance().testSound("DSPISTOL");
+            testSoundDebounce = true;
+        }
+        if (!inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_T)) {
+            testSoundDebounce = false;
+        }
     }
 
     private boolean mapToggleDebounce = false;
+    private boolean testSoundDebounce = false;
 
     @Override
     protected void paintComponent(Graphics g) {
@@ -216,6 +226,11 @@ public class DoomEngine extends JPanel implements Runnable {
         // Draw player sprite (weapon) overlay directly on top
         if (viewRenderer != null) { // Ensure viewRenderer is initialized
             viewRenderer.drawSprite(g2d);
+        }
+        
+        // Draw HUD overlay
+        if (player != null && player.getHUD() != null) {
+            player.getHUD().renderHUD(g2d);
         }
 
         // Optional: Draw 2D map overlay
@@ -235,6 +250,10 @@ public class DoomEngine extends JPanel implements Runnable {
     public InputHandler getInputHandler() { return inputHandler; }
     public double getDeltaTime() { return deltaTime; }
     public int getCurrentSkillLevel() { return currentSkillLevel; } // Getter for skill level
+
+    public ObjectManager getObjectManager() {
+        return objectManager;
+    }
 
     // This method now provides the framebuffer that game logic should draw onto
     public int[] getFramebuffer() {
