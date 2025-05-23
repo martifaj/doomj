@@ -326,5 +326,204 @@ public class BSP {
         // Check if intersection occurs within both line segments
         return t >= 0 && t <= 1 && u >= 0 && u <= 1;
     }
+    
+    /**
+     * Check if movement from start to end position is blocked by walls
+     * @param start Starting position
+     * @param end Ending position  
+     * @param radius Entity radius for collision detection
+     * @return true if movement is blocked, false if clear
+     */
+    public boolean isMovementBlocked(Vector2D start, Vector2D end, double radius) {
+        // Check if the direct line from start to end intersects any solid walls
+        if (hasWallCollision(start, end, radius)) {
+            return true;
+        }
+        
+        // Check if the destination position is valid (not inside a wall)
+        return !isPositionValid(end, radius);
+    }
+    
+    /**
+     * Check if a circular entity at the given position collides with any walls
+     * @param position Center position of the entity
+     * @param radius Radius of the entity
+     * @return true if position is valid (no collision), false if blocked
+     */
+    public boolean isPositionValid(Vector2D position, double radius) {
+        // Get the subsector at this position
+        SubSector subSector = getSubSectorAt(position.x, position.y);
+        if (subSector == null) return false; // Outside valid map area
+        
+        // Check collision with all solid walls in nearby subsectors
+        return !hasNearbyWallCollision(position, radius);
+    }
+    
+    /**
+     * Check if a line segment with thickness (entity radius) collides with walls
+     * @param start Starting position
+     * @param end Ending position
+     * @param radius Thickness/radius of the moving entity
+     * @return true if collision detected, false if clear
+     */
+    private boolean hasWallCollision(Vector2D start, Vector2D end, double radius) {
+        // For entities with radius, we need to check multiple parallel lines
+        Vector2D direction = end.subtract(start);
+        double distance = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
+        
+        if (distance < 1e-6) return false; // No movement
+        
+        // Normalize direction
+        Vector2D normalizedDir = direction.scale(1.0 / distance);
+        // Get perpendicular vector for width checks
+        Vector2D perpendicular = new Vector2D(-normalizedDir.y, normalizedDir.x);
+        
+        // Check center line and edges
+        Vector2D leftEdge = start.add(perpendicular.scale(radius));
+        Vector2D rightEdge = start.subtract(perpendicular.scale(radius));
+        Vector2D leftEdgeEnd = end.add(perpendicular.scale(radius));
+        Vector2D rightEdgeEnd = end.subtract(perpendicular.scale(radius));
+        
+        // Check if any of the edge lines intersect with walls
+        return checkLineCollision(start, end) || 
+               checkLineCollision(leftEdge, leftEdgeEnd) || 
+               checkLineCollision(rightEdge, rightEdgeEnd);
+    }
+    
+    /**
+     * Check if a line intersects with any solid walls
+     * @param start Line start
+     * @param end Line end
+     * @return true if collision detected
+     */
+    private boolean checkLineCollision(Vector2D start, Vector2D end) {
+        double distance = Vector2D.distance(start, end);
+        int samples = Math.max(4, (int)(distance / 16.0)); // Sample every 16 units for better precision
+        
+        for (int i = 0; i <= samples; i++) {
+            double t = (double)i / samples;
+            double x = start.x + t * (end.x - start.x);
+            double y = start.y + t * (end.y - start.y);
+            
+            SubSector subSector = getSubSectorAt(x, y);
+            if (subSector == null) return true; // Outside valid area = collision
+            
+            // Check all segs in this subsector
+            for (int j = 0; j < subSector.segCount; j++) {
+                Seg seg = segs.get(subSector.firstSegId + j);
+                if (seg.backSector == null) { // Solid wall
+                    if (lineIntersectsSegment(start, end, seg)) {
+                        return true; // Collision detected
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if a circular area around a position intersects with any walls
+     * @param center Center position
+     * @param radius Radius to check
+     * @return true if collision detected
+     */
+    private boolean hasNearbyWallCollision(Vector2D center, double radius) {
+        // Get subsector at center
+        SubSector centerSubSector = getSubSectorAt(center.x, center.y);
+        if (centerSubSector == null) return true;
+        
+        // Check collision with walls in this subsector
+        for (int i = 0; i < centerSubSector.segCount; i++) {
+            Seg seg = segs.get(centerSubSector.firstSegId + i);
+            if (seg.backSector == null) { // Solid wall
+                if (circleIntersectsLineSegment(center, radius, seg.startVertex, seg.endVertex)) {
+                    return true;
+                }
+            }
+        }
+        
+        // TODO: For better collision detection, we should also check neighboring subsectors
+        // within the radius. For now, this basic check should work for most cases.
+        
+        return false;
+    }
+    
+    /**
+     * Check if a circle intersects with a line segment
+     * @param circleCenter Center of the circle
+     * @param radius Radius of the circle
+     * @param lineStart Start of line segment
+     * @param lineEnd End of line segment
+     * @return true if they intersect
+     */
+    private boolean circleIntersectsLineSegment(Vector2D circleCenter, double radius, Vector2D lineStart, Vector2D lineEnd) {
+        // Vector from line start to circle center
+        Vector2D startToCenter = circleCenter.subtract(lineStart);
+        // Vector along the line
+        Vector2D lineVector = lineEnd.subtract(lineStart);
+        
+        double lineLengthSquared = lineVector.x * lineVector.x + lineVector.y * lineVector.y;
+        if (lineLengthSquared < 1e-6) {
+            // Line is essentially a point, check distance to that point
+            return Vector2D.distance(circleCenter, lineStart) <= radius;
+        }
+        
+        // Project circle center onto the line
+        double t = Math.max(0, Math.min(1, 
+            (startToCenter.x * lineVector.x + startToCenter.y * lineVector.y) / lineLengthSquared));
+        
+        // Find closest point on line segment
+        Vector2D closestPoint = lineStart.add(lineVector.scale(t));
+        
+        // Check distance from circle center to closest point
+        return Vector2D.distance(circleCenter, closestPoint) <= radius;
+    }
+    
+    /**
+     * Get a safe movement position that doesn't collide with walls
+     * @param start Starting position
+     * @param desired Desired ending position
+     * @param radius Entity radius
+     * @return Safe position to move to (may be closer to start if desired position is blocked)
+     */
+    public Vector2D getSafeMovementPosition(Vector2D start, Vector2D desired, double radius) {
+        // If desired position is valid, return it
+        if (!isMovementBlocked(start, desired, radius)) {
+            return desired;
+        }
+        
+        // Try to find the furthest safe position along the movement vector
+        Vector2D direction = desired.subtract(start);
+        double maxDistance = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
+        
+        if (maxDistance < 1e-6) return start; // No movement
+        
+        Vector2D normalizedDir = direction.scale(1.0 / maxDistance);
+        
+        // Binary search for the furthest safe position
+        double minSafe = 0;
+        double maxUnsafe = maxDistance;
+        
+        for (int i = 0; i < 10; i++) { // 10 iterations should be enough precision
+            double testDistance = (minSafe + maxUnsafe) / 2.0;
+            Vector2D testPos = start.add(normalizedDir.scale(testDistance));
+            
+            if (isMovementBlocked(start, testPos, radius)) {
+                maxUnsafe = testDistance;
+            } else {
+                minSafe = testDistance;
+            }
+        }
+        
+        Vector2D result = start.add(normalizedDir.scale(minSafe));
+        
+        // Debug output for collision blocking (only log significant blocks)
+        if (Vector2D.distance(result, desired) > 8.0) {
+            // System.out.println("BSP: Movement blocked, moved " + (int)minSafe + " of " + (int)maxDistance + " units");
+        }
+        
+        return result;
+    }
 }
 

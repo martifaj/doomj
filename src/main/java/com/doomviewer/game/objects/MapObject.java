@@ -10,6 +10,7 @@ import java.awt.image.BufferedImage;
 
 public class MapObject {
     public Vector2D pos;
+    public Vector2D velocity; // For projectiles and moving objects
     public double angle; // degrees, 0 = East, 90 = North (Doom convention)
     public double z;     // z-coordinate of object's bottom, relative to sector floor. Initially 0.
     public double floorHeight; // Current floor height under the object
@@ -70,6 +71,7 @@ public class MapObject {
         this.type = gameDefinitions.doomedNumToMobjType.get(thing.type);
 
         this.pos = new Vector2D(thing.pos.x, thing.pos.y);
+        this.velocity = new Vector2D(0, 0); // Initialize velocity to zero
         this.angle = GameDefinitions.bamsToDegrees((short) thing.angle); // Convert BAMS to degrees
         this.health = this.info.spawnHealth;
         this.flags = this.info.flags;
@@ -112,6 +114,11 @@ public class MapObject {
     }
 
     public void update(DoomEngine engine) {
+        // Update projectile movement
+        if (isProjectile()) {
+            updateProjectileMovement(engine);
+        }
+        
         // Update Z position based on current sector's floor height
         // This should ideally be done if the object moves to a new sector or if floor moves.
         // For simplicity, let's assume it's updated if it's not MF_NOGRAVITY
@@ -544,13 +551,20 @@ public class MapObject {
         double moveDistance = moveSpeed * deltaTime * 35.0; // Adjust for 35 fps game logic
         
         double angleRad = Math.toRadians(angleInDegrees);
-        double newX = this.pos.x + Math.cos(angleRad) * moveDistance;
-        double newY = this.pos.y + Math.sin(angleRad) * moveDistance;
+        Vector2D desiredPos = new Vector2D(
+            this.pos.x + Math.cos(angleRad) * moveDistance,
+            this.pos.y + Math.sin(angleRad) * moveDistance
+        );
         
-        // Simple collision check - don't move into walls
-        if (!isPositionBlocked(newX, newY, engine)) {
-            this.pos.x = newX;
-            this.pos.y = newY;
+        // Use BSP collision detection to get safe movement position
+        Vector2D safePos = engine.getBsp().getSafeMovementPosition(this.pos, desiredPos, renderRadius);
+        
+        // Only move if we actually get closer to the desired position
+        double currentDistance = Vector2D.distance(this.pos, desiredPos);
+        double safeDistance = Vector2D.distance(safePos, desiredPos);
+        
+        if (safeDistance < currentDistance || Vector2D.distance(this.pos, safePos) > 1.0) {
+            this.pos = safePos;
             
             // Turn towards movement direction
             turnTowardsAngle(angleInDegrees, deltaTime);
@@ -581,15 +595,9 @@ public class MapObject {
     }
     
     private boolean isPositionBlocked(double x, double y, DoomEngine engine) {
-        // Simple collision check using BSP tree
-        // For now, just check if the position is in a valid sector
-        // A more sophisticated implementation would check for wall collisions
-        try {
-            double floorHeight = engine.getBsp().getSubSectorHeightAt(x, y);
-            return false; // If we can get floor height, position is valid
-        } catch (Exception e) {
-            return true; // If we can't get floor height, position is likely blocked
-        }
+        // Use new BSP collision detection system
+        Vector2D position = new Vector2D(x, y);
+        return !engine.getBsp().isPositionValid(position, renderRadius);
     }
     
     private double getAttackRange() {
@@ -623,6 +631,72 @@ public class MapObject {
                 return inMeleeRange ? StateNum.S_SARG_ATK1 : null;
             default:
                 return null;
+        }
+    }
+    
+    private boolean isProjectile() {
+        return (flags & MobjFlags.MF_MISSILE) != 0 || 
+               type == MobjType.MT_TROOPSHOT ||
+               type == MobjType.MT_PUFF ||
+               type == MobjType.MT_BLOOD;
+    }
+    
+    private void updateProjectileMovement(DoomEngine engine) {
+        double deltaTime = engine.getDeltaTime() / 1000.0; // Convert to seconds
+        
+        // Move projectile
+        Vector2D newPos = pos.add(velocity.scale(deltaTime));
+        
+        // Check for collisions
+        if (type == MobjType.MT_TROOPSHOT) {
+            // Check collision with target (player) first
+            if (target != null) {
+                double distanceToTarget = Vector2D.distance(newPos, target.pos);
+                if (distanceToTarget < renderRadius + target.renderRadius) {
+                    // Hit target!
+                    explodeProjectile(engine);
+                    return;
+                }
+            }
+            
+            // Check collision with walls using BSP
+            if (engine.getBsp().isMovementBlocked(pos, newPos, renderRadius)) {
+                // Hit wall
+                explodeProjectile(engine);
+                return;
+            }
+            
+            // No collision, move to new position
+            pos = newPos;
+        } else {
+            // Effects (puff, blood) don't move, just update position
+            pos = newPos;
+        }
+    }
+    
+    private void explodeProjectile(DoomEngine engine) {
+        if (info.deathState != StateNum.S_NULL) {
+            setState(info.deathState);
+            velocity = new Vector2D(0, 0); // Stop moving
+            
+            // Deal damage if it hit the target
+            if (target != null) {
+                double distanceToTarget = Vector2D.distance(pos, target.pos);
+                if (distanceToTarget < renderRadius + target.renderRadius) {
+                    target.health -= info.damage;
+                    System.out.println(info.name + " explodes and hits " + target.info.name + " for " + info.damage + " damage!");
+                    
+                    if (target.health <= 0) {
+                        System.out.println(target.info.name + " is killed by " + info.name + "!");
+                        target.setState(target.info.deathState);
+                    } else if (Math.random() < (target.info.painChance / 255.0)) {
+                        target.setState(target.info.painState);
+                        System.out.println(target.info.name + " is in pain from " + info.name + "!");
+                    }
+                }
+            }
+            
+            System.out.println(info.name + " explodes at (" + (int)pos.x + "," + (int)pos.y + ")!");
         }
     }
 }

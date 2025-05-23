@@ -32,6 +32,10 @@ public class Player extends MapObject {
         // Python's rotate_ip takes degrees. So player.angle must be degrees.
         this.angle = ((playerThing.angle & 0xFFFF) / 65536.0) * 360.0; // Correct for unsigned 16-bit BAMS
         this.angle %= 360.0;
+        
+        // Set player collision radius to match standard Doom player size
+        this.renderRadius = getPlayerRadius();
+        
         System.out.println("Player initial pos: " + this.pos + ", angle (deg): " + this.angle);
 
 
@@ -91,8 +95,70 @@ public class Player extends MapObject {
         double worldDx = inc.x * cosA - inc.y * sinA;
         double worldDy = inc.x * sinA + inc.y * cosA;
 
-        this.pos.x += worldDx; // pos is inherited from MapObject
-        this.pos.y += worldDy;
+        // Apply BSP collision detection with wall sliding
+        applyMovementWithCollision(worldDx, worldDy);
+    }
+
+    /**
+     * Apply movement with collision detection and wall sliding
+     * @param dx Desired X movement
+     * @param dy Desired Y movement
+     */
+    private void applyMovementWithCollision(double dx, double dy) {
+        Vector2D currentPos = new Vector2D(this.pos.x, this.pos.y);
+        Vector2D desiredPos = new Vector2D(this.pos.x + dx, this.pos.y + dy);
+        double radius = getPlayerRadius();
+        
+        // Try full movement first
+        Vector2D safePos = engine.getBsp().getSafeMovementPosition(currentPos, desiredPos, radius);
+        
+        // If we couldn't move fully, try sliding along walls
+        if (Vector2D.distance(safePos, desiredPos) > 1.0) {
+            // Debug: uncomment to see collision blocking
+            // System.out.println("Player collision detected, attempting wall slide");
+            // Try X movement only (slide along Y-axis walls)
+            Vector2D xOnlyPos = new Vector2D(this.pos.x + dx, this.pos.y);
+            Vector2D safeXOnly = engine.getBsp().getSafeMovementPosition(currentPos, xOnlyPos, radius);
+            
+            // Try Y movement only (slide along X-axis walls) 
+            Vector2D yOnlyPos = new Vector2D(this.pos.x, this.pos.y + dy);
+            Vector2D safeYOnly = engine.getBsp().getSafeMovementPosition(currentPos, yOnlyPos, radius);
+            
+            // Choose the movement that gets us furthest
+            double xDistance = Vector2D.distance(currentPos, safeXOnly);
+            double yDistance = Vector2D.distance(currentPos, safeYOnly);
+            double fullDistance = Vector2D.distance(currentPos, safePos);
+            
+            if (fullDistance >= Math.max(xDistance, yDistance)) {
+                // Full movement is best
+                this.pos.x = safePos.x;
+                this.pos.y = safePos.y;
+            } else if (xDistance > yDistance) {
+                // X-only movement is better (sliding along Y walls)
+                this.pos.x = safeXOnly.x;
+                this.pos.y = safeXOnly.y;
+            } else if (yDistance > 0.1) {
+                // Y-only movement is better (sliding along X walls)
+                this.pos.x = safeYOnly.x;
+                this.pos.y = safeYOnly.y;
+            } else {
+                // No significant movement possible
+                this.pos.x = safePos.x;
+                this.pos.y = safePos.y;
+            }
+        } else {
+            // Full movement was successful
+            this.pos.x = safePos.x;
+            this.pos.y = safePos.y;
+        }
+    }
+
+    /**
+     * Gets the player's collision radius for BSP collision detection
+     * Standard Doom player radius is 16 units
+     */
+    private double getPlayerRadius() {
+        return 16.0; // Standard Doom player collision radius
     }
 
     /**

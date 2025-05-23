@@ -43,6 +43,16 @@ public enum StateNum {
     S_SARG_DIE1, S_SARG_DIE2, S_SARG_DIE3, S_SARG_DIE4, S_SARG_DIE5, S_SARG_DIE6,
     S_SARG_RAISE1, S_SARG_RAISE2, S_SARG_RAISE3, S_SARG_RAISE4, S_SARG_RAISE5, S_SARG_RAISE6,
 
+    // Projectile states
+    // MT_TROOPSHOT (Imp fireball) states
+    S_TBALL1, S_TBALL2, S_TBALLEX1, S_TBALLEX2, S_TBALLEX3,
+    
+    // MT_PUFF (Bullet impact) states  
+    S_PUFF1, S_PUFF2, S_PUFF3, S_PUFF4,
+    
+    // MT_BLOOD (Blood splat) states
+    S_BLOOD1, S_BLOOD2, S_BLOOD3,
+
     // ... placeholder for further states
     S_DUMMY_END_STATE_FOR_NOW
 }

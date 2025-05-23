@@ -16,6 +16,7 @@ import java.util.logging.Logger; // Import Logger
 public class ObjectManager {
     private DoomEngine engine;
     private List<MapObject> mapObjects;
+    private List<MapObject> projectiles;
     private GameDefinitions gameDefinitions;
     private static final Logger LOGGER = Logger.getLogger(ObjectManager.class.getName()); // Add Logger instance
 
@@ -23,6 +24,7 @@ public class ObjectManager {
         this.engine = engine;
         this.gameDefinitions = new GameDefinitions(); // This loads all state/mobj defs
         this.mapObjects = new ArrayList<>();
+        this.projectiles = new ArrayList<>();
         int currentSkill = engine.getCurrentSkillLevel();
 
         LOGGER.info("Initializing ObjectManager with skill level: " + currentSkill);
@@ -128,6 +130,7 @@ public class ObjectManager {
         for (MapObject mo : mapObjects) {
             mo.update(engine); // Call update on each MapObject
         }
+        updateProjectiles(); // Update projectiles
     }
 
     public List<MapObject> getVisibleSortedMapObjects() {
@@ -143,6 +146,30 @@ public class ObjectManager {
                                 mo.pos.subtract(player.pos).y * mo.pos.subtract(player.pos).y
                 ).reversed()) // reversed for farthest first
                 .collect(Collectors.toList());
+    }
+
+    public void addProjectile(MapObject projectile) {
+        projectiles.add(projectile);
+    }
+    
+    public void updateProjectiles() {
+        // Update all projectiles
+        for (int i = projectiles.size() - 1; i >= 0; i--) {
+            MapObject projectile = projectiles.get(i);
+            projectile.update(engine);
+            
+            // Remove projectiles that have finished their animation
+            if (projectile.currentStateNum == null || projectile.currentStateNum.name().equals("S_NULL")) {
+                projectiles.remove(i);
+            }
+        }
+    }
+    
+    public List<MapObject> getAllRenderableObjects() {
+        // Combine map objects and projectiles for rendering
+        List<MapObject> allObjects = new ArrayList<>(mapObjects);
+        allObjects.addAll(projectiles);
+        return allObjects;
     }
 
     public GameDefinitions getGameDefinitions() {

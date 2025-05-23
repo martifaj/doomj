@@ -31,6 +31,7 @@ public class GameDefinitions {
         populateShotguy();   // Shotgun Guy
         populateImp();       // Imp
         populateDemon();     // Demon/Spectre
+        populateProjectiles(); // Projectiles and effects
         // Add more initializations for other mobj types and their states
     }
 
@@ -408,6 +409,61 @@ public class GameDefinitions {
         );
         mobjInfos.put(MobjType.MT_SERGEANT, demonInfo);
         doomedNumToMobjType.put(TYPE_SERGEANT, MobjType.MT_SERGEANT);
+    }
+
+    private void populateProjectiles() {
+        // MT_TROOPSHOT (Imp Fireball) states
+        addState(StateNum.S_TBALL1, SpriteNames.BAL1, 0, 4, Actions.NULL_ACTION, StateNum.S_TBALL2);
+        addState(StateNum.S_TBALL2, SpriteNames.BAL1, 1, 4, Actions.NULL_ACTION, StateNum.S_TBALL1);
+        
+        // Fireball explosion
+        addState(StateNum.S_TBALLEX1, SpriteNames.BAL1, 2, 6, Actions.NULL_ACTION, StateNum.S_TBALLEX2);
+        addState(StateNum.S_TBALLEX2, SpriteNames.BAL1, 3, 6, Actions.NULL_ACTION, StateNum.S_TBALLEX3);
+        addState(StateNum.S_TBALLEX3, SpriteNames.BAL1, 4, 6, Actions.NULL_ACTION, StateNum.S_NULL);
+
+        // MobjInfo for MT_TROOPSHOT (Imp Fireball)
+        MobjInfoDef fireballInfo = new MobjInfoDef(
+                "MT_TROOPSHOT", -1, StateNum.S_TBALL1, 1000, StateNum.S_NULL,
+                8, StateNum.S_NULL, 0, StateNum.S_NULL,
+                StateNum.S_NULL, StateNum.S_TBALLEX1, StateNum.S_NULL,
+                10, 6.0, 8.0, 100, 3, // speed, radius, height, mass, damage
+                MobjFlags.MF_NOBLOCKMAP | MobjFlags.MF_MISSILE | MobjFlags.MF_DROPOFF | MobjFlags.MF_NOGRAVITY,
+                StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_TROOPSHOT, fireballInfo);
+
+        // MT_PUFF (Bullet Impact) states
+        addState(StateNum.S_PUFF1, SpriteNames.PUFF, 0, 4, Actions.NULL_ACTION, StateNum.S_PUFF2);
+        addState(StateNum.S_PUFF2, SpriteNames.PUFF, 1, 4, Actions.NULL_ACTION, StateNum.S_PUFF3);
+        addState(StateNum.S_PUFF3, SpriteNames.PUFF, 2, 4, Actions.NULL_ACTION, StateNum.S_PUFF4);
+        addState(StateNum.S_PUFF4, SpriteNames.PUFF, 3, 4, Actions.NULL_ACTION, StateNum.S_NULL);
+
+        // MobjInfo for MT_PUFF (Bullet Impact)
+        MobjInfoDef puffInfo = new MobjInfoDef(
+                "MT_PUFF", -1, StateNum.S_PUFF1, 1000, StateNum.S_NULL,
+                0, StateNum.S_NULL, 0, StateNum.S_NULL,
+                StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                0, 20.0, 16.0, 100, 0, // no speed, radius, height, mass, no damage
+                MobjFlags.MF_NOBLOCKMAP | MobjFlags.MF_NOGRAVITY,
+                StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_PUFF, puffInfo);
+
+        // MT_BLOOD (Blood Splat) states
+        addState(StateNum.S_BLOOD1, SpriteNames.BLUD, 2, 8, Actions.NULL_ACTION, StateNum.S_BLOOD2);
+        addState(StateNum.S_BLOOD2, SpriteNames.BLUD, 1, 8, Actions.NULL_ACTION, StateNum.S_BLOOD3);
+        addState(StateNum.S_BLOOD3, SpriteNames.BLUD, 0, 8, Actions.NULL_ACTION, StateNum.S_NULL);
+
+        // MobjInfo for MT_BLOOD (Blood Splat)
+        MobjInfoDef bloodInfo = new MobjInfoDef(
+                "MT_BLOOD", -1, StateNum.S_BLOOD1, 1000, StateNum.S_NULL,
+                0, StateNum.S_NULL, 0, StateNum.S_NULL,
+                StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
+                0, 20.0, 16.0, 100, 0, // no speed, radius, height, mass, no damage
+                MobjFlags.MF_NOBLOCKMAP | MobjFlags.MF_NOGRAVITY,
+                StateNum.S_NULL
+        );
+        mobjInfos.put(MobjType.MT_BLOOD, bloodInfo);
     }
 
 
