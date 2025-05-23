@@ -26,8 +26,8 @@ public class MapObject {
     public int thingFlags; // Added to store original Thing flags
 
     // Rendering related
-    protected GameDefinitions gameDefinitions;
-    private AssetData assetData;
+    private final GameDefinitions gameDefinitions;
+    private final AssetData assetData;
     private final DoomEngine engine;
     public String currentSpriteLumpName;
     public boolean currentSpriteFullBright;

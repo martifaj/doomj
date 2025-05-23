@@ -268,8 +268,8 @@ public class Actions {
             target.setState(target.info.deathState);
         } else if (Math.random() < (target.info.painChance / 255.0)) {
             // Pain chance
-            target.setState(target.info.painState);
             System.out.println(target.info.name + " is in pain!");
+            target.setState(target.info.painState);
         }
     }
     
@@ -353,8 +353,6 @@ public class Actions {
     
     private static void performPlayerHitscanAttack(DoomEngine engine, int damage, double range, double spread) {
         com.doomviewer.game.Player player = engine.getPlayer();
-        
-        System.out.println("*** PLAYER FIRING - Looking for targets ***");
         
         // Calculate attack angle with spread
         double baseAngle = player.angle;

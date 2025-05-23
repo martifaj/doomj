@@ -29,6 +29,11 @@ public class StateDef {
     }
 
     public String getSpriteLumpName() {
+        // Check for invalid frame (used for invisible objects)
+        if (frameData < 0) {
+            return null; // No sprite to render
+        }
+        
         // Sprite lump names are typically XXXXYR, e.g., POSSA1
         // X = Sprite Name (e.g., POSS)
         // Y = Frame Character (A-Z) based on frame index

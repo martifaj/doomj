@@ -412,10 +412,6 @@ public class Player extends MapObject {
     public boolean isAttackDown() {
         return attackdown;
     }
-    
-    public GameDefinitions getGameDefinitions() {
-        return super.gameDefinitions;
-    }
-    
+
 }
 

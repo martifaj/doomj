@@ -24,8 +24,8 @@ public class GameDefinitions {
         mobjInfos = new HashMap<>();
         doomedNumToMobjType = new HashMap<>();
 
-        // Initialize with S_NULL state at index 0
-        statesMap.put(StateNum.S_NULL, new StateDef(SpriteNames.TROO, 0, -1, Actions.NULL_ACTION, StateNum.S_NULL)); // S_NULL
+        // Initialize with S_NULL state at index 0 - should not render any sprite
+        statesMap.put(StateNum.S_NULL, new StateDef(SpriteNames.TROO, -1, -1, Actions.NULL_ACTION, StateNum.S_NULL)); // S_NULL with invalid frame
 
         populatePlayer(); // Add this call
         populatePossessed(); // Zombieman
@@ -265,9 +265,9 @@ public class GameDefinitions {
         addState(StateNum.S_SPOS_ATK2, SpriteNames.SPOS, 5, 10, Actions::A_SPosAttack, StateNum.S_SPOS_ATK3);
         addState(StateNum.S_SPOS_ATK3, SpriteNames.SPOS, 4, 10, Actions.NULL_ACTION, StateNum.S_SPOS_RUN1);
 
-        // Pain: 2 frames (6,6), tics (3,3)
-        addState(StateNum.S_SPOS_PAIN, SpriteNames.SPOS, 6, 3, Actions.NULL_ACTION, StateNum.S_SPOS_PAIN2);
-        addState(StateNum.S_SPOS_PAIN2, SpriteNames.SPOS, 6, 3, Actions::A_Pain, StateNum.S_SPOS_RUN1);
+        // Pain: 2 frames (6,6), tics (8,8) - made longer to be more visible
+        addState(StateNum.S_SPOS_PAIN, SpriteNames.SPOS, 6, 8, Actions.NULL_ACTION, StateNum.S_SPOS_PAIN2);
+        addState(StateNum.S_SPOS_PAIN2, SpriteNames.SPOS, 6, 8, Actions::A_Pain, StateNum.S_SPOS_RUN1);
 
         // Die: 5 frames (7,8,9,10,11), tics (5,5,5,5,-1)
         addState(StateNum.S_SPOS_DIE1, SpriteNames.SPOS, 7, 5, Actions.NULL_ACTION, StateNum.S_SPOS_DIE2);
@@ -299,7 +299,7 @@ public class GameDefinitions {
                 SoundKey.SFX_POSIT2, // seeSound
                 8, // reactiontime
                 SoundKey.SFX_SHOTGN, // attackSound
-                StateNum.S_SPOS_PAIN, 170, // painstate, painchance
+                StateNum.S_SPOS_PAIN, 240, // painstate, painchance (increased from 170 to make more likely)
                 SoundKey.SFX_PLPAIN, // painSound
                 StateNum.S_NULL, // Melee state S_NULL
                 StateNum.S_SPOS_ATK1, StateNum.S_SPOS_DIE1, StateNum.S_SPOS_XDIE1,
@@ -735,9 +735,12 @@ public class GameDefinitions {
     }
     
     private void populateSpecialObjects() {
+        // Add invisible state for special objects
+        addState(StateNum.S_INVISIBLE, SpriteNames.TROO, -1, -1, Actions.NULL_ACTION, StateNum.S_INVISIBLE);
+        
         // Deathmatch start
         MobjInfoDef deathmatchStartInfo = new MobjInfoDef(
-                "MT_DEATHMATCH_START", 11, StateNum.S_NULL, -1, StateNum.S_NULL,
+                "MT_DEATHMATCH_START", 11, StateNum.S_INVISIBLE, -1, StateNum.S_NULL,
                 SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
                 SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
                 SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,
@@ -748,7 +751,7 @@ public class GameDefinitions {
         
         // Teleporter destination
         MobjInfoDef teleporterDestInfo = new MobjInfoDef(
-                "MT_TELEPORTER_DEST", 14, StateNum.S_NULL, -1, StateNum.S_NULL,
+                "MT_TELEPORTER_DEST", 14, StateNum.S_INVISIBLE, -1, StateNum.S_NULL,
                 SoundKey.SFX_NONE, 0, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
                 SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_NULL,
                 SoundKey.SFX_NONE, 0, 20.0, 16.0, 100, 0,

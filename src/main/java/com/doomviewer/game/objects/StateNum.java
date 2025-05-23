@@ -92,6 +92,9 @@ public enum StateNum {
     S_POL1, S_POL2, S_POL3, S_POL4, S_POL5, S_POL6,
     S_HDB1, S_HDB2, S_HDB3, S_HDB4, S_HDB5, S_HDB6,
     S_POB1, S_POB2, S_BRS1, S_TLMP, S_TLP2,
+    
+    // Special invisible state for spawn points
+    S_INVISIBLE,
 
     // ... placeholder for further states
     S_DUMMY_END_STATE_FOR_NOW

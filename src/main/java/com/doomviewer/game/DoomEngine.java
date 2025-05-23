@@ -46,7 +46,7 @@ public class DoomEngine extends JPanel implements Runnable {
     private double deltaTime = 0;
 
     private boolean showMap = false;
-    private int currentSkillLevel = 4; // Default to Skill 4 (Ultra-Violence)
+    private int currentSkillLevel = 1; // Default to Skill 1 (I'm Too Young To Die - Easy)
 
     public DoomEngine(String wadPath, String mapName) {
         this.wadPath = wadPath;
