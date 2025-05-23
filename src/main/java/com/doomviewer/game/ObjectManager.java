@@ -3,6 +3,9 @@ package com.doomviewer.game;
 import com.doomviewer.game.objects.GameDefinitions;
 import com.doomviewer.game.objects.MapObject;
 import com.doomviewer.game.objects.MobjInfoDef; // Added import
+import com.doomviewer.game.objects.MobjType;
+import com.doomviewer.game.objects.Projectile;
+import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.wad.WADData;
 import com.doomviewer.wad.datatypes.Thing;
 
@@ -11,14 +14,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.logging.Logger; // Import Logger
 
 public class ObjectManager {
     private DoomEngine engine;
     private List<MapObject> mapObjects;
     private List<MapObject> projectiles;
     private GameDefinitions gameDefinitions;
-    private static final Logger LOGGER = Logger.getLogger(ObjectManager.class.getName()); // Add Logger instance
 
     public ObjectManager(DoomEngine engine, WADData wadData) {
         this.engine = engine;
@@ -27,21 +28,10 @@ public class ObjectManager {
         this.projectiles = new ArrayList<>();
         int currentSkill = engine.getCurrentSkillLevel();
 
-        LOGGER.info("Initializing ObjectManager with skill level: " + currentSkill);
-        int thingCounter = 0;
-
         for (Thing thing : wadData.things) {
-            thingCounter++;
             MobjInfoDef mobjInfo = gameDefinitions.getMobjInfoByDoomedNum(thing.type);
-            // Log every 10th thing or if it's a Zombieman (type 3004)
-            boolean logThisThing = (thingCounter % 10 == 0) || (thing.type == 3004);
-
-            if (logThisThing) {
-                LOGGER.info("Processing Thing #" + thingCounter + ": Type=" + thing.type + ", Flags=" + thing.flags + " at (" + thing.pos.x + "," + thing.pos.y + ")");
-            }
 
             if (mobjInfo == null) {
-                if (logThisThing) LOGGER.info("  -> No MobjInfoDef. Skipping.");
                 continue; // Not a defined object type, skip.
             }
 
@@ -51,14 +41,12 @@ public class ObjectManager {
                 thing.type == mainPlayer.info.doomednum &&
                 mainPlayer.pos.x == thing.pos.x &&
                 mainPlayer.pos.y == thing.pos.y) {
-                if (logThisThing) LOGGER.info("  -> Is Main Player. Skipping.");
                 continue;
             }
 
             // 2. Skip other player starts (types 1-4) in single-player mode
             //    (Main player type 1 is already caught above, this catches types 2,3,4)
             if (thing.type >= 1 && thing.type <= 4) {
-                 if (logThisThing) LOGGER.info("  -> Is other Player Start (2-4). Skipping in SP.");
                 continue;
             }
 
@@ -97,24 +85,13 @@ public class ObjectManager {
                 }
             }
 
-            if (logThisThing) {
-                LOGGER.info("  -> Skill filter result: shouldSpawn = " + shouldSpawn + " (mobjInfo: " + mobjInfo.name + ")");
-            }
-
             if (shouldSpawn) {
                 try {
                     MapObject mo = new MapObject(thing, gameDefinitions, wadData.assetData, engine);
                     mapObjects.add(mo);
-                    if (logThisThing || thing.type == 3004) { // Log all Zombiemen creations
-                        LOGGER.info("  -> SPAWNED: " + mobjInfo.name + " (Type: " + thing.type + ")");
-                    }
                 } catch (IllegalArgumentException e) {
-                    LOGGER.warning("  -> FAILED TO SPAWN (Exception): " + mobjInfo.name + " (Type: " + thing.type + "). Error: " + e.getMessage());
+                    // Silently skip objects that fail to spawn
                 }
-            } else {
-                 if (logThisThing && thing.type == 3004) { // Log Zombiemen that didn't spawn
-                     LOGGER.info("  -> NOT SPAWNED (failed skill/other filter): Zombieman (Type: " + thing.type + ")");
-                 }
             }
         }
         // After all MapObjects are created, initialize their height and target
@@ -123,7 +100,6 @@ public class ObjectManager {
                 mo.initializeHeightAndTarget(engine.getBsp());
             }
         }
-        System.out.println("ObjectManager initialized with " + mapObjects.size() + " map objects.");
     }
 
     public void update() {
@@ -141,9 +117,13 @@ public class ObjectManager {
         Player player = engine.getPlayer();
         if (player == null) return Collections.emptyList();
 
+        // Combine map objects and projectiles for rendering
+        List<MapObject> allObjects = new ArrayList<>(mapObjects);
+        allObjects.addAll(projectiles);
+
         // Filter (e.g. by MF_NOSECTOR or MF_NODRAW flags if implemented)
         // and sort by distance from player (farthest first for painter's algorithm)
-        return mapObjects.stream()
+        return allObjects.stream()
                 .filter(mo -> mo.info != null) // Ensure it's a validly initialized object
                 .sorted(Comparator.<MapObject>comparingDouble((mo) ->
                         mo.pos.subtract(player.pos).x * mo.pos.subtract(player.pos).x + // Use squared distance
@@ -156,6 +136,13 @@ public class ObjectManager {
         projectiles.add(projectile);
     }
     
+    public Projectile createProjectile(MobjType projectileType, Vector2D startPos, double angle, MapObject shooter) {
+        Projectile projectile = new Projectile(projectileType, startPos, angle, shooter, 
+                                             gameDefinitions, engine.getWadData().assetData, engine);
+        projectiles.add(projectile);
+        return projectile;
+    }
+    
     public void updateProjectiles() {
         // Update all projectiles
         for (int i = projectiles.size() - 1; i >= 0; i--) {
@@ -163,7 +150,9 @@ public class ObjectManager {
             projectile.update(engine);
             
             // Remove projectiles that have finished their animation
-            if (projectile.currentStateNum == null || projectile.currentStateNum.name().equals("S_NULL")) {
+            // Only remove actual projectiles (missiles, puffs, blood), not map objects that exploded
+            if ((projectile.currentStateNum == null || projectile.currentStateNum.name().equals("S_NULL")) &&
+                projectile.isProjectile()) {
                 projectiles.remove(i);
             }
         }
@@ -178,5 +167,9 @@ public class ObjectManager {
 
     public GameDefinitions getGameDefinitions() {
         return gameDefinitions;
+    }
+    
+    public void removeObject(MapObject object) {
+        mapObjects.remove(object);
     }
 }

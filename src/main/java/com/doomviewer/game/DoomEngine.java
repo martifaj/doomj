@@ -12,12 +12,11 @@ import com.doomviewer.wad.WADData;
 import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
-import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.logging.Level;
 
 public class DoomEngine extends JPanel implements Runnable {
 
-    private static final Logger LOGGER = Logger.getLogger(DoomEngine.class.getName());
     private final String wadPath;
     private final String mapName;
 
@@ -37,6 +36,7 @@ public class DoomEngine extends JPanel implements Runnable {
     private WADData wadData;
     private MapRenderer mapRenderer;
     private Player player;
+    private DoorManager doorManager;
     private BSP bsp;
     private SegHandler segHandler;
     private ViewRenderer viewRenderer;
@@ -64,17 +64,6 @@ public class DoomEngine extends JPanel implements Runnable {
         // Initialize depth buffer
         depthBuffer = new double[Constants.WIDTH * Constants.HEIGHT];
 
-        addFocusListener(new java.awt.event.FocusAdapter() {
-            @Override
-            public void focusGained(java.awt.event.FocusEvent e) {
-                LOGGER.info("DoomEngine panel gained focus");
-            }
-
-            @Override
-            public void focusLost(java.awt.event.FocusEvent e) {
-                LOGGER.info("DoomEngine panel lost focus. Opposite component: " + e.getOppositeComponent());
-            }
-        });
     }
 
     private void onInit() throws IOException {
@@ -103,12 +92,14 @@ public class DoomEngine extends JPanel implements Runnable {
         // However, Player constructor already took one. If it stores it, it might be the temp one.
         // For now, let's assume the temp one is sufficient for Player's immediate needs.
 
+        // Initialize door manager
+        doorManager = new DoorManager(wadData, this);
+
         bsp = new BSP(this);
         segHandler = new SegHandler(this);
         viewRenderer = new ViewRenderer(this);
         mapRenderer = new MapRenderer(this);
 
-        LOGGER.info("DOOM Engine initialized for map: " + mapName);
     }
 
     public synchronized void start() {
@@ -118,7 +109,6 @@ public class DoomEngine extends JPanel implements Runnable {
         try {
             onInit();
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Failed to initialize Doom Engine", e);
             running = false;
             JOptionPane.showMessageDialog(null, "Failed to initialize Doom Engine: " + e.getMessage(), "Initialization Error", JOptionPane.ERROR_MESSAGE);
             return;
@@ -176,6 +166,7 @@ public class DoomEngine extends JPanel implements Runnable {
         segHandler.update();
         bsp.update(); // This will trigger rendering into renderFramebuffer via SegHandler & ViewRenderer
         objectManager.update();
+        doorManager.update(player);
         
         // Draw world sprites (enemies, etc.) to the render buffer with occlusion
         if (viewRenderer != null) {
@@ -254,6 +245,10 @@ public class DoomEngine extends JPanel implements Runnable {
     public ObjectManager getObjectManager() {
         return objectManager;
     }
+    
+    public DoorManager getDoorManager() {
+        return doorManager;
+    }
 
     // This method now provides the framebuffer that game logic should draw onto
     public int[] getFramebuffer() {
@@ -266,6 +261,16 @@ public class DoomEngine extends JPanel implements Runnable {
     }
 
     public static void main(String[] args) {
+        // Configure logging to reduce spam
+        Logger rootLogger = Logger.getLogger("");
+        rootLogger.setLevel(Level.ALL);
+        
+        // Set specific loggers for user feedback  
+        Logger.getLogger("com.doomviewer.game.Door").setLevel(Level.INFO);
+        Logger.getLogger("com.doomviewer.game.Player").setLevel(Level.INFO);
+        Logger.getLogger("com.doomviewer.game.DoorManager").setLevel(Level.INFO);
+        Logger.getLogger("com.doomviewer.game.BSP").setLevel(Level.INFO);
+        
         String wadFilePath = "DOOM1.WAD";
         String mapToLoad = "E1M1";
 

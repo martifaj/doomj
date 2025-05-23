@@ -54,6 +54,9 @@ public class AssetData {
         this.spritePatches = new HashMap<>();
         // Sprites
         this.sprites = loadSprites("S_START", "S_END");
+        
+        // Load face graphics (HUD face sprites are stored as graphics, not sprites)
+        loadFaceGraphics();
 
         // Texture patch names
         LumpInfo pnamesLump = getLumpInfo("PNAMES");
@@ -170,17 +173,61 @@ public class AssetData {
             return loadedSpriteImages;
         }
 
+        LOGGER.info("Loading sprites from " + startMarker + " to " + endMarker + " (indices " + idx1 + "-" + idx2 + ")");
+        int spritesLoaded = 0;
+        
         for (int i = idx1 + 1; i < idx2; i++) {
             LumpInfo lumpInfo = this.directory.get(i);
             if (lumpInfo.lumpSize == 0) continue;
 
             String lumpNameUpper = lumpInfo.lumpName.toUpperCase();
+            
+            
             Patch patch = new Patch(this, lumpNameUpper, true); // Use uppercase consistently
             this.spritePatches.put(lumpNameUpper, patch);
             loadedSpriteImages.put(lumpNameUpper, patch.getImage());
+            spritesLoaded++;
         }
+        
+        LOGGER.info("Total sprites loaded: " + spritesLoaded);
+        
+        
         this.sprites = loadedSpriteImages; // Assign to the class member
         return loadedSpriteImages; // Though constructor won't use return value
+    }
+    
+    private void loadFaceGraphics() throws IOException {
+        // List of face sprite names to look for
+        String[] faceSprites = {
+            "STFST00", "STFST10", "STFST20", "STFST30", "STFST40",
+            "STFST01", "STFST11", "STFST21", "STFST31", "STFST41", 
+            "STFST02", "STFST12", "STFST22", "STFST32", "STFST42",
+            "STFOUCH0", "STFOUCH1", "STFOUCH2", "STFOUCH3", "STFOUCH4",
+            "STFEVL0", "STFEVL1", "STFEVL2", "STFEVL3", "STFEVL4",
+            "STFKILL0", "STFKILL1", "STFKILL2", "STFKILL3", "STFKILL4",
+            "STFGOD0", "STFDEAD0"
+        };
+        
+        LOGGER.info("Loading face graphics as patches...");
+        int facesLoaded = 0;
+        
+        for (String faceName : faceSprites) {
+            try {
+                // Try to load as a patch (like regular graphics)
+                Patch facePatch = new Patch(this, faceName, true); // Use sprite scaling
+                if (facePatch.getImage() != null) {
+                    this.sprites.put(faceName, facePatch.getImage());
+                    this.spritePatches.put(faceName, facePatch);
+                    LOGGER.info("Loaded face graphic: " + faceName);
+                    facesLoaded++;
+                }
+            } catch (Exception e) {
+                // Face sprite not found, continue to next
+                LOGGER.fine("Face graphic not found: " + faceName);
+            }
+        }
+        
+        LOGGER.info("Total face graphics loaded: " + facesLoaded);
     }
 
     private List<TextureMap> loadTextureMaps(String textureLumpName) throws IOException {

@@ -84,6 +84,7 @@ public class MapObject {
         // this.floorHeight = engine.getPlayer().floorHeight; // Removed
         // this.z = this.floorHeight; // Removed
 
+        
         setState(this.info.spawnState); // Initial state set
         
         // Initialize AI state for enemies
@@ -205,6 +206,8 @@ public class MapObject {
         // Update sprite representation
         this.currentSpriteLumpName = this.currentStateDef.getSpriteLumpName();
         this.currentSpriteFullBright = this.currentStateDef.isFullBright();
+        
+        
 
         // Cache sprite offsets if needed, from AssetData.Patch.header
         BufferedImage spriteImage = assetData.sprites.get(this.currentSpriteLumpName);
@@ -256,12 +259,64 @@ public class MapObject {
                     moveSpeed = 1.8; // Slightly faster than zombieman
                     turnSpeed = 140.0;
                     break;
+                case MT_CHAINGUY: // Chaingunner
+                    moveSpeed = 1.6; // Similar to shotgun guy
+                    turnSpeed = 130.0;
+                    break;
                 case MT_TROOP: // Imp
                     moveSpeed = 2.2; // Fast and agile
                     turnSpeed = 200.0;
                     break;
-                case MT_SERGEANT: // Demon
+                case MT_SERGEANT: // Demon/Pinky
                     moveSpeed = 3.0; // Very fast, aggressive
+                    turnSpeed = 180.0;
+                    break;
+                case MT_SHADOWS: // Spectre (invisible demon)
+                    moveSpeed = 3.2; // Slightly faster than regular demon
+                    turnSpeed = 190.0;
+                    break;
+                case MT_HEAD: // Cacodemon
+                    moveSpeed = 1.8; // Floating, moderate speed
+                    turnSpeed = 150.0;
+                    break;
+                case MT_SKULL: // Lost Soul
+                    moveSpeed = 4.0; // Very fast, charging attacks
+                    turnSpeed = 300.0;
+                    break;
+                case MT_KNIGHT: // Hell Knight
+                    moveSpeed = 2.0; // Moderate speed, tough
+                    turnSpeed = 160.0;
+                    break;
+                case MT_BRUISER: // Baron of Hell
+                    moveSpeed = 1.8; // Slower but very tough
+                    turnSpeed = 150.0;
+                    break;
+                case MT_FATSO: // Mancubus
+                    moveSpeed = 1.2; // Slow and heavy
+                    turnSpeed = 100.0;
+                    break;
+                case MT_BABY: // Arachnotron
+                    moveSpeed = 2.5; // Fast spider-like movement
+                    turnSpeed = 200.0;
+                    break;
+                case MT_PAIN: // Pain Elemental
+                    moveSpeed = 2.0; // Floating, moderate speed
+                    turnSpeed = 160.0;
+                    break;
+                case MT_SPIDER: // Spider Mastermind
+                    moveSpeed = 2.8; // Fast boss movement
+                    turnSpeed = 180.0;
+                    break;
+                case MT_CYBORG: // Cyberdemon
+                    moveSpeed = 1.5; // Slow but devastating
+                    turnSpeed = 120.0;
+                    break;
+                case MT_VILE: // Arch-Vile
+                    moveSpeed = 2.5; // Fast and dangerous
+                    turnSpeed = 220.0;
+                    break;
+                case MT_WOLFSS: // Wolfenstein SS
+                    moveSpeed = 2.0; // Similar to imp
                     turnSpeed = 180.0;
                     break;
                 default:
@@ -291,10 +346,6 @@ public class MapObject {
         // Calculate distance to player
         double distanceToPlayer = Vector2D.distance(this.pos, player.pos);
         
-        // Debug player position tracking
-        if (type == MobjType.MT_POSSESSED && debugCounter % 120 == 0) { // Every ~4 seconds
-            System.out.println("Zombieman[" + hashCode() + "] tracking player at (" + (int)player.pos.x + "," + (int)player.pos.y + ")");
-        }
         
         // Check if player is in line of sight
         boolean canSeePlayer = hasLineOfSight(player, engine);
@@ -302,11 +353,7 @@ public class MapObject {
         // Update timers
         if (attackCooldown > 0) attackCooldown--;
         
-        // Debug output for zombieman (per-object counter)
-        if (type == MobjType.MT_POSSESSED && ++debugCounter % 60 == 0) { // Every ~2 seconds
-            System.out.println("Zombieman[" + hashCode() + "] AI: State=" + aiState + ", Distance=" + (int)distanceToPlayer + 
-                             ", CanSee=" + canSeePlayer + ", AttackCD=" + attackCooldown);
-        }
+        debugCounter++;
         
         // Update AI state machine
         switch (aiState) {
@@ -330,11 +377,24 @@ public class MapObject {
     }
     
     private boolean isEnemy() {
-        // Check if this is an enemy type (simplified check)
-        return type == MobjType.MT_POSSESSED || // Zombieman
-               type == MobjType.MT_SHOTGUY ||   // Sergeant
-               type == MobjType.MT_TROOP ||     // Imp
-               type == MobjType.MT_SERGEANT;    // Demon
+        // Check if this is an enemy type
+        return type == MobjType.MT_POSSESSED ||  // Zombieman
+               type == MobjType.MT_SHOTGUY ||    // Shotgun Guy
+               type == MobjType.MT_TROOP ||      // Imp
+               type == MobjType.MT_SERGEANT ||   // Demon/Pinky
+               type == MobjType.MT_CHAINGUY ||   // Chaingunner
+               type == MobjType.MT_SHADOWS ||    // Spectre
+               type == MobjType.MT_HEAD ||       // Cacodemon
+               type == MobjType.MT_BRUISER ||    // Baron of Hell
+               type == MobjType.MT_KNIGHT ||     // Hell Knight
+               type == MobjType.MT_SKULL ||      // Lost Soul
+               type == MobjType.MT_FATSO ||      // Mancubus
+               type == MobjType.MT_BABY ||       // Arachnotron
+               type == MobjType.MT_PAIN ||       // Pain Elemental
+               type == MobjType.MT_SPIDER ||     // Spider Mastermind
+               type == MobjType.MT_CYBORG ||     // Cyberdemon
+               type == MobjType.MT_VILE ||       // Arch-Vile
+               type == MobjType.MT_WOLFSS;       // Wolfenstein SS
     }
     
     private boolean hasLineOfSight(MapObject target, DoomEngine engine) {
@@ -356,7 +416,6 @@ public class MapObject {
             target = player;
             lastKnownPlayerPos = new Vector2D(player.pos.x, player.pos.y);
             alertTics = 350; // 10 seconds at 35 fps
-            System.out.println("Zombieman detected player! Switching to CHASING. Distance: " + (int)distance);
         } else {
             // Occasionally start wandering
             aiTics--;
@@ -373,7 +432,6 @@ public class MapObject {
             target = player;
             lastKnownPlayerPos = new Vector2D(player.pos.x, player.pos.y);
             alertTics = 350;
-            System.out.println("Zombieman spotted player while wandering! Switching to CHASING. Distance: " + (int)distance);
             return;
         }
         
@@ -414,8 +472,6 @@ public class MapObject {
                     StateNum attackState = getAttackState(inMeleeRange);
                     if (attackState != null) {
                         setState(attackState);
-                        System.out.println(info.name + " attacking! Distance: " + (int)distance + 
-                                         " (Melee: " + inMeleeRange + ", Range: " + inMissileRange + ") -> State: " + attackState);
                     }
                     return; // Don't move when attacking
                 }
@@ -442,17 +498,12 @@ public class MapObject {
     private void updateAttackingState(MapObject player, double distance, boolean canSeePlayer) {
         aiTics--;
         
-        // Debug attack state (less spam)
-        if (aiTics % 15 == 0) {
-            System.out.println(info.name + "[" + hashCode() + "] ATTACKING! Tics remaining: " + aiTics);
-        }
         
         // Check if attack animation is finished by looking at current state
         boolean attackFinished = aiTics <= 0 || isInNonAttackState();
         
         if (attackFinished) {
             // Attack finished, go back to chasing or searching
-            System.out.println(info.name + "[" + hashCode() + "] attack finished!");
             if (canSeePlayer && distance < 2048.0) {
                 aiState = AIState.CHASING;
                 // Switch back to run state
@@ -478,7 +529,6 @@ public class MapObject {
         
         // Trigger attack effect at specific timing
         if (aiTics == 17) { // Halfway through attack
-            System.out.println("BOOM! " + info.name + "[" + hashCode() + "] attacks player!");
             // In a full game, this would deal damage to the player
         }
     }
@@ -508,8 +558,21 @@ public class MapObject {
         switch (type) {
             case MT_POSSESSED: return StateNum.S_POSS_RUN1;
             case MT_SHOTGUY: return StateNum.S_SPOS_RUN1;
+            case MT_CHAINGUY: return StateNum.S_CPOS_RUN1;
             case MT_TROOP: return StateNum.S_TROO_RUN1;
-            case MT_SERGEANT: return StateNum.S_SARG_RUN1;
+            case MT_SERGEANT: 
+            case MT_SHADOWS: return StateNum.S_SARG_RUN1;
+            case MT_HEAD: return StateNum.S_HEAD_RUN1;
+            case MT_SKULL: return StateNum.S_SKULL_RUN1;
+            case MT_KNIGHT: return StateNum.S_BOS2_RUN1;
+            case MT_BRUISER: return StateNum.S_BOSS_RUN1;
+            case MT_FATSO: return StateNum.S_BOSS_RUN1; // Use Baron for now
+            case MT_BABY: return StateNum.S_HEAD_RUN1; // Use Cacodemon for now
+            case MT_PAIN: return StateNum.S_HEAD_RUN1; // Use Cacodemon for now
+            case MT_SPIDER: return StateNum.S_SPID_RUN1;
+            case MT_CYBORG: return StateNum.S_CYBER_RUN1;
+            case MT_VILE: return StateNum.S_HEAD_RUN1; // Use Cacodemon for now
+            case MT_WOLFSS: return StateNum.S_POSS_RUN1; // Use zombieman
             default: return null;
         }
     }
@@ -520,7 +583,6 @@ public class MapObject {
             target = player;
             lastKnownPlayerPos = new Vector2D(player.pos.x, player.pos.y);
             alertTics = 350;
-            System.out.println("Zombieman found player while searching! Switching to CHASING. Distance: " + (int)distance);
             return;
         }
         
@@ -557,8 +619,8 @@ public class MapObject {
             this.pos.y + Math.sin(angleRad) * moveDistance
         );
         
-        // Use BSP collision detection to get safe movement position
-        Vector2D safePos = engine.getBsp().getSafeMovementPosition(this.pos, desiredPos, renderRadius);
+        // Use BSP collision detection to get safe movement position (no logging for AI)
+        Vector2D safePos = engine.getBsp().getSafeMovementPosition(this.pos, desiredPos, renderRadius, false);
         
         // Only move if we actually get closer to the desired position
         double currentDistance = Vector2D.distance(this.pos, desiredPos);
@@ -607,10 +669,35 @@ public class MapObject {
                 return 512.0;
             case MT_SHOTGUY:    // Shotgun Guy - shotgun
                 return 320.0;
+            case MT_CHAINGUY:   // Chaingunner - chaingun
+                return 512.0;
             case MT_TROOP:      // Imp - fireball
                 return 448.0;
             case MT_SERGEANT:   // Demon - melee only
+            case MT_SHADOWS:    // Spectre - melee only
                 return 64.0;
+            case MT_HEAD:       // Cacodemon - fireball
+                return 512.0;
+            case MT_SKULL:      // Lost Soul - charge attack
+                return 128.0;
+            case MT_KNIGHT:     // Hell Knight - fireball + melee
+                return 384.0;
+            case MT_BRUISER:    // Baron of Hell - fireball + melee
+                return 512.0;
+            case MT_FATSO:      // Mancubus - multiple fireballs
+                return 640.0;
+            case MT_BABY:       // Arachnotron - plasma
+                return 576.0;
+            case MT_PAIN:       // Pain Elemental - spawn lost souls
+                return 256.0;
+            case MT_SPIDER:     // Spider Mastermind - chaingun
+                return 768.0;
+            case MT_CYBORG:     // Cyberdemon - rockets
+                return 896.0;
+            case MT_VILE:       // Arch-Vile - fire attack
+                return 448.0;
+            case MT_WOLFSS:     // Wolfenstein SS - pistol
+                return 512.0;
             default:
                 return 256.0;
         }
@@ -622,6 +709,8 @@ public class MapObject {
                 return StateNum.S_POSS_ATK1;
             case MT_SHOTGUY:    // Shotgun Guy - ranged attack only
                 return StateNum.S_SPOS_ATK1;
+            case MT_CHAINGUY:   // Chaingunner - ranged attack only
+                return StateNum.S_CPOS_ATK1;
             case MT_TROOP:      // Imp - melee if close, fireball if far
                 if (inMeleeRange) {
                     return StateNum.S_TROO_ATK1;  // Melee attack
@@ -629,13 +718,44 @@ public class MapObject {
                     return StateNum.S_TROO_MISS1; // Missile attack
                 }
             case MT_SERGEANT:   // Demon - melee only
+            case MT_SHADOWS:    // Spectre - melee only
                 return inMeleeRange ? StateNum.S_SARG_ATK1 : null;
+            case MT_HEAD:       // Cacodemon - ranged fireball
+                return StateNum.S_HEAD_ATK1;
+            case MT_SKULL:      // Lost Soul - charge attack
+                return StateNum.S_SKULL_ATK1;
+            case MT_KNIGHT:     // Hell Knight - ranged fireball or melee
+                if (inMeleeRange) {
+                    return StateNum.S_BOS2_ATK1; // Melee
+                } else {
+                    return StateNum.S_BOS2_ATK1; // Ranged (same state)
+                }
+            case MT_BRUISER:    // Baron of Hell - ranged fireball or melee
+                if (inMeleeRange) {
+                    return StateNum.S_BOSS_ATK1; // Melee
+                } else {
+                    return StateNum.S_BOSS_ATK1; // Ranged (same state)
+                }
+            case MT_FATSO:      // Mancubus - multiple fireballs
+                return StateNum.S_BOSS_ATK1; // Use Baron attack for now
+            case MT_BABY:       // Arachnotron - plasma
+                return StateNum.S_HEAD_ATK1; // Use Cacodemon attack for now
+            case MT_PAIN:       // Pain Elemental - spawn lost souls
+                return StateNum.S_HEAD_ATK1; // Use Cacodemon attack for now
+            case MT_SPIDER:     // Spider Mastermind - chaingun
+                return StateNum.S_SPID_ATK1;
+            case MT_CYBORG:     // Cyberdemon - rockets
+                return StateNum.S_CYBER_ATK1;
+            case MT_VILE:       // Arch-Vile - fire attack
+                return StateNum.S_HEAD_ATK1; // Use Cacodemon attack for now
+            case MT_WOLFSS:     // Wolfenstein SS - pistol
+                return StateNum.S_POSS_ATK1; // Use zombieman attack
             default:
                 return null;
         }
     }
     
-    private boolean isProjectile() {
+    public boolean isProjectile() {
         return (flags & MobjFlags.MF_MISSILE) != 0 || 
                type == MobjType.MT_TROOPSHOT ||
                type == MobjType.MT_PUFF ||
@@ -660,8 +780,8 @@ public class MapObject {
                 }
             }
             
-            // Check collision with walls using BSP
-            if (engine.getBsp().isMovementBlocked(pos, newPos, renderRadius)) {
+            // Check collision with walls using BSP (no logging for projectiles)
+            if (engine.getBsp().isMovementBlocked(pos, newPos, renderRadius, false)) {
                 // Hit wall
                 explodeProjectile(engine);
                 return;
@@ -685,19 +805,14 @@ public class MapObject {
                 double distanceToTarget = Vector2D.distance(pos, target.pos);
                 if (distanceToTarget < renderRadius + target.renderRadius) {
                     target.health -= info.damage;
-                    System.out.println(info.name + " explodes and hits " + target.info.name + " for " + info.damage + " damage!");
-                    
-                    if (target.health <= 0) {
-                        System.out.println(target.info.name + " is killed by " + info.name + "!");
+                            if (target.health <= 0) {
                         target.setState(target.info.deathState);
                     } else if (Math.random() < (target.info.painChance / 255.0)) {
                         target.setState(target.info.painState);
-                        System.out.println(target.info.name + " is in pain from " + info.name + "!");
                     }
                 }
             }
             
-            System.out.println(info.name + " explodes at (" + (int)pos.x + "," + (int)pos.y + ")!");
         }
     }
 

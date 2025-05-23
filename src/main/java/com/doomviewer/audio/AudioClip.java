@@ -64,15 +64,18 @@ public class AudioClip {
         // bytes 8+: sound data
         
         int format = (doomData[1] << 8) | (doomData[0] & 0xFF);
+        int sampleRate = (doomData[3] << 8) | (doomData[2] & 0xFF);
+        // Read as unsigned 32-bit integer
+        long numSamplesLong = ((long)(doomData[7] & 0xFF) << 24) | ((long)(doomData[6] & 0xFF) << 16) | 
+                             ((long)(doomData[5] & 0xFF) << 8) | (doomData[4] & 0xFF);
+        int numSamples = (int) numSamplesLong;
+        
         if (format != 3) {
             // If not standard DOOM format, return raw data as-is with default sample rate
             return new DoomSoundResult(doomData, 11025f);
         }
         
-        int sampleRate = (doomData[3] << 8) | (doomData[2] & 0xFF);
-        int numSamples = (doomData[7] << 24) | (doomData[6] << 16) | (doomData[5] << 8) | (doomData[4] & 0xFF);
-        
-        if (numSamples < 0 || doomData.length < 8 + numSamples) {
+        if (numSamples < 0 || numSamplesLong > Integer.MAX_VALUE || doomData.length < 8 + numSamples) {
             throw new IllegalArgumentException("Invalid DOOM sound data - corrupted header or truncated");
         }
         

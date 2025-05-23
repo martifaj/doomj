@@ -76,8 +76,8 @@ public class Actions {
             double speed = self.info.speed / 35.0 * (engine.getDeltaTime() / 1000.0); // Convert to game units per second
             Vector2D desiredPos = self.pos.add(dirToTarget.scale(speed));
             
-            // Use BSP collision detection to get safe movement position
-            Vector2D safePos = engine.getBsp().getSafeMovementPosition(self.pos, desiredPos, self.renderRadius);
+            // Use BSP collision detection to get safe movement position (no logging for AI)
+            Vector2D safePos = engine.getBsp().getSafeMovementPosition(self.pos, desiredPos, self.renderRadius, false);
             
             // Only update position if we're making progress towards target
             if (Vector2D.distance(self.pos, safePos) > 1.0) {
@@ -115,7 +115,6 @@ public class Actions {
         SoundEngine.getInstance().playSound("DSPISTOL");
         // Hitscan attack - instant bullet
         performHitscanAttack(self, engine, 3, 5, 2048); // damage 3, spread 5 degrees, max range 2048 units
-        System.out.println("*** " + self.info.name + " fires pistol! ***");
     }
 
     public static void A_SPosAttack(MapObject self, DoomEngine engine) {
@@ -126,7 +125,6 @@ public class Actions {
         for (int i = 0; i < 3; i++) {
             performHitscanAttack(self, engine, 3, 11.25, 1024); // damage 3, spread 11.25 degrees, range 1024
         }
-        System.out.println("*** " + self.info.name + " fires shotgun! ***");
     }
 
     public static void A_TroopAttack(MapObject self, DoomEngine engine) {
@@ -135,7 +133,6 @@ public class Actions {
         SoundEngine.getInstance().playSound("DSCLAW");
         // Melee attack - check range and deal damage
         performMeleeAttack(self, engine, 10, 64); // damage 10, range 64 units
-        System.out.println("*** " + self.info.name + " melee attack! ***");
     }
 
     public static void A_TroopMissile(MapObject self, DoomEngine engine) {
@@ -144,7 +141,6 @@ public class Actions {
         SoundEngine.getInstance().playSound("DSFIRSHT");
         // Spawn MT_TROOPSHOT fireball projectile
         spawnMissile(self, engine, MobjType.MT_TROOPSHOT);
-        System.out.println("*** " + self.info.name + " fires fireball! ***");
     }
 
     public static void A_SargAttack(MapObject self, DoomEngine engine) {
@@ -153,7 +149,6 @@ public class Actions {
         SoundEngine.getInstance().playSound("DSSGTATK");
         // Strong melee attack - demon bite
         performMeleeAttack(self, engine, 15, 64); // damage 15, range 64 units
-        System.out.println("*** " + self.info.name + " bites! ***");
     }
 
     public static void A_Scream(MapObject self, DoomEngine engine) {
@@ -173,9 +168,10 @@ public class Actions {
     }
 
     public static void A_Fall(MapObject self, DoomEngine engine) {
-        // Object becomes non-solid, non-shootable.
+        // Object becomes non-solid, non-shootable, but remains visible as a corpse.
         self.flags &= ~MobjFlags.MF_SOLID;
         self.flags &= ~MobjFlags.MF_SHOOTABLE;
+        self.flags |= MobjFlags.MF_CORPSE; // Mark as corpse so it stays visible
         // System.out.println(self.info.name + " falls!");
     }
 
@@ -188,6 +184,14 @@ public class Actions {
     public static final MobjAction A_CHASE_ACTION = Actions::A_Chase;
     public static final MobjAction A_FACE_TARGET_ACTION = Actions::A_FaceTarget;
     public static final MobjAction A_POS_ATTACK_ACTION = Actions::A_PosAttack;
+    public static final MobjAction A_SPOS_ATTACK_ACTION = Actions::A_SPosAttack;
+    public static final MobjAction A_TROOP_ATTACK_ACTION = Actions::A_TroopAttack;
+    public static final MobjAction A_TROOP_MISSILE_ACTION = Actions::A_TroopMissile;
+    public static final MobjAction A_HEAD_ATTACK_ACTION = Actions::A_HeadAttack;
+    public static final MobjAction A_BRUIS_ATTACK_ACTION = Actions::A_BruisAttack;
+    public static final MobjAction A_FAT_ATTACK1_ACTION = Actions::A_FatAttack1;
+    public static final MobjAction A_FAT_ATTACK2_ACTION = Actions::A_FatAttack2;
+    public static final MobjAction A_FAT_ATTACK3_ACTION = Actions::A_FatAttack3;
     public static final MobjAction A_SCREAM_ACTION = Actions::A_Scream;
     public static final MobjAction A_PAIN_ACTION = Actions::A_Pain;
     public static final MobjAction A_FALL_ACTION = Actions::A_Fall;
@@ -196,17 +200,68 @@ public class Actions {
     // Placeholder for other actions
     public static final MobjAction NULL_ACTION = (s, e) -> {};
 
+    // Additional projectile attack actions for enemies not yet implemented
+    public static void A_HeadAttack(MapObject self, DoomEngine engine) {
+        Actions.A_FaceTarget(self, engine);
+        // Play cacodemon fireball sound
+        SoundEngine.getInstance().playSound("DSFIRSHT");
+        // Launch cacodemon fireball
+        spawnMissile(self, engine, MobjType.MT_HEADSHOT);
+    }
+    
+    public static void A_BruisAttack(MapObject self, DoomEngine engine) {
+        Actions.A_FaceTarget(self, engine);
+        // Play baron fireball sound
+        SoundEngine.getInstance().playSound("DSFIRSHT");
+        // Launch baron fireball
+        spawnMissile(self, engine, MobjType.MT_BRUISERSHOT);
+    }
+    
+    public static void A_FatAttack1(MapObject self, DoomEngine engine) {
+        Actions.A_FaceTarget(self, engine);
+        // Play mancubus sound
+        SoundEngine.getInstance().playSound("DSMANATK");
+        // Launch mancubus fireball (left)
+        spawnMissileWithAngleOffset(self, engine, MobjType.MT_FATSHOT, -15.0);
+    }
+    
+    public static void A_FatAttack2(MapObject self, DoomEngine engine) {
+        Actions.A_FaceTarget(self, engine);
+        // Launch mancubus fireball (center)
+        spawnMissile(self, engine, MobjType.MT_FATSHOT);
+    }
+    
+    public static void A_FatAttack3(MapObject self, DoomEngine engine) {
+        Actions.A_FaceTarget(self, engine);
+        // Launch mancubus fireball (right)
+        spawnMissileWithAngleOffset(self, engine, MobjType.MT_FATSHOT, 15.0);
+    }
+
     // Combat helper methods
     private static void spawnMissile(MapObject source, DoomEngine engine, MobjType missileType) {
         if (source.target == null) return;
         
-        // For now, just create a simple effect - full projectile system will need DoomEngine methods
-        System.out.println("*** " + source.info.name + " would spawn " + missileType + " projectile! ***");
+        // Calculate angle to target
+        double angleToTarget = Math.toDegrees(Math.atan2(
+            source.target.pos.y - source.pos.y, 
+            source.target.pos.x - source.pos.x
+        ));
         
-        // Simplified damage - just hit the target directly for now
-        if (source.target != null) {
-            dealDamage(source.target, 8, engine); // Fireball damage
-        }
+        // Create projectile through ObjectManager
+        engine.getObjectManager().createProjectile(missileType, source.pos, angleToTarget, source);
+    }
+    
+    private static void spawnMissileWithAngleOffset(MapObject source, DoomEngine engine, MobjType missileType, double angleOffset) {
+        if (source.target == null) return;
+        
+        // Calculate angle to target with offset
+        double angleToTarget = Math.toDegrees(Math.atan2(
+            source.target.pos.y - source.pos.y, 
+            source.target.pos.x - source.pos.x
+        )) + angleOffset;
+        
+        // Create projectile through ObjectManager
+        engine.getObjectManager().createProjectile(missileType, source.pos, angleToTarget, source);
     }
     
     private static void performHitscanAttack(MapObject source, DoomEngine engine, int damage, double spread, double maxRange) {
@@ -233,14 +288,11 @@ public class Actions {
             if (angleDiff <= spread / 2.0) {
                 // Hit! Deal damage
                 dealDamage(source.target, damage, engine);
-                System.out.println(source.info.name + " hits " + source.target.info.name + " for " + damage + " damage!");
             } else {
                 // Miss
-                System.out.println(source.info.name + " misses!");
             }
         } else {
             // Out of range
-            System.out.println(source.info.name + " fires but target out of range!");
         }
     }
     
@@ -254,21 +306,17 @@ public class Actions {
             dealDamage(source.target, damage, engine);
             System.out.println(source.info.name + " hits " + source.target.info.name + " for " + damage + " damage!");
         } else {
-            System.out.println(source.info.name + " swings but misses!");
         }
     }
     
     private static void dealDamage(MapObject target, int damage, DoomEngine engine) {
         target.health -= damage;
-        System.out.println(target.info.name + " takes " + damage + " damage! Health: " + target.health + "/" + target.info.spawnHealth);
         
         if (target.health <= 0) {
             // Target killed
-            System.out.println(target.info.name + " is killed!");
             target.setState(target.info.deathState);
         } else if (Math.random() < (target.info.painChance / 255.0)) {
             // Pain chance
-            System.out.println(target.info.name + " is in pain!");
             target.setState(target.info.painState);
         }
     }
@@ -363,7 +411,6 @@ public class Actions {
         double endX = player.pos.x + Math.cos(angleRad) * range;
         double endY = player.pos.y + Math.sin(angleRad) * range;
         
-        System.out.println("Player at (" + (int)player.pos.x + "," + (int)player.pos.y + ") firing at angle " + (int)attackAngle);
         
         // Check for enemy hits
         int enemyCount = 0;
@@ -372,30 +419,24 @@ public class Actions {
             enemyCount++;
             
             double distanceToEnemy = com.doomviewer.misc.math.Vector2D.distance(player.pos, enemy.pos);
-            System.out.println("Enemy " + enemyCount + " at (" + (int)enemy.pos.x + "," + (int)enemy.pos.y + ") distance: " + (int)distanceToEnemy);
             
             if (distanceToEnemy <= range) {
                 // Simple hit test - check if enemy is in attack direction
                 double angleToEnemy = Math.toDegrees(Math.atan2(enemy.pos.y - player.pos.y, enemy.pos.x - player.pos.x));
                 double angleDiff = Math.abs(normalizeAngle(angleToEnemy - attackAngle));
                 
-                System.out.println("  Angle to enemy: " + (int)angleToEnemy + ", angle diff: " + (int)angleDiff);
                 
                 if (angleDiff <= 15.0) { // 30-degree cone
                     // Hit! Deal damage
-                    System.out.println("*** HIT! Dealing " + damage + " damage to " + enemy.info.name + " ***");
                     dealDamage(enemy, damage, engine);
                     break; // Hit first enemy in line
                 } else {
-                    System.out.println("  Miss - angle too wide");
                 }
             } else {
-                System.out.println("  Miss - out of range");
             }
         }
         
         if (enemyCount == 0) {
-            System.out.println("No enemies found to attack!");
         }
     }
 
