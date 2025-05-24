@@ -18,6 +18,7 @@ public class Projectile extends MapObject {
     private double blastRadius;
     private int lifeTime; // in tics
     private int currentLifeTics;
+    private double heightOffset; // Height above floor level to maintain during flight
 
     public Projectile(MobjType projectileType, Vector2D startPos, double angle, MapObject shooter,
                       GameDefinitions gameDefinitions, AssetData assetData, CollisionService collisionService, GameEngineTmp engineTmp, AudioService audioService,
@@ -133,15 +134,21 @@ public class Projectile extends MapObject {
                 startPos.y + Math.sin(angleRad) * offsetDistance
         );
         
-        // Set Z coordinate to start at appropriate height relative to shooter
+        // Calculate height offset based on shooter's position
         if (shooter != null) {
-            // Start projectile at roughly the middle height of the shooter
-            // This makes fireballs appear to come from the enemy's torso/head area rather than ground level
-            this.z = shooter.z + (shooter.renderHeight * 0.6); // 60% up the shooter's height
+            // Calculate how high above the floor the shooter's firing point is
+            // Use 60% of shooter's height as the firing point (torso/head area)
+            double shooterFiringHeight = shooter.z + (shooter.renderHeight * 0.6);
+            this.heightOffset = shooterFiringHeight - this.floorHeight;
+            // Ensure minimum height for visibility and gameplay
+            this.heightOffset = Math.max(this.heightOffset, 32.0);
         } else {
-            // Fallback if no shooter (shouldn't happen for enemy projectiles)
-            this.z = this.floorHeight + 32; // Default height above ground
+            // Fallback if no shooter
+            this.heightOffset = 48.0; // Default height above ground
         }
+        
+        // Set initial Z coordinate
+        this.z = this.floorHeight + this.heightOffset;
     }
 
     private static Thing createProjectileThing(MobjType type, Vector2D pos, double angle, GameDefinitions gameDefinitions) {
@@ -347,7 +354,9 @@ public class Projectile extends MapObject {
 
         // Update Z position for flying projectiles
             this.floorHeight = collisionService.getSubSectorHeightAt(pos.x, pos.y);
-            this.z = this.floorHeight + 32.0; // Fly at head height
+            // Maintain the same height offset above the floor as when the projectile was created
+            // This preserves the original firing height relative to terrain changes
+            this.z = this.floorHeight + this.heightOffset;
     }
 
     private void hitTarget(MapObject target) {
