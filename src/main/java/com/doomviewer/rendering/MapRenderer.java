@@ -4,7 +4,7 @@ import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.game.Player;
 import com.doomviewer.game.DoomEngine;
-import com.doomviewer.wad.WADData;
+import com.doomviewer.wad.WADDataService;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Node;
 import com.doomviewer.wad.datatypes.Seg;
@@ -19,7 +19,7 @@ import java.util.Random;
 
 public class MapRenderer {
     private DoomEngine engine;
-    private WADData wadData;
+    private WADDataService wadDataService;
     private List<Vector2D> remappedVertexes;
     private double xMin, xMax, yMin, yMax; // Original map bounds
     private Player player;
@@ -27,7 +27,7 @@ public class MapRenderer {
 
     public MapRenderer(DoomEngine engine) {
         this.engine = engine;
-        this.wadData = engine.getWadData();
+        this.wadDataService = engine.getWadData();
         this.player = engine.getPlayer();
 
         calculateMapBounds();
@@ -35,13 +35,13 @@ public class MapRenderer {
     }
 
     private void calculateMapBounds() {
-        if (wadData.vertexes.isEmpty()) {
+        if (wadDataService.vertexes.isEmpty()) {
             xMin = yMin = -1; xMax = yMax = 1; // Default bounds
             return;
         }
         List<Double> xCoords = new ArrayList<>();
         List<Double> yCoords = new ArrayList<>();
-        for (Vector2D v : wadData.vertexes) {
+        for (Vector2D v : wadDataService.vertexes) {
             xCoords.add(v.x);
             yCoords.add(v.y);
         }
@@ -57,7 +57,7 @@ public class MapRenderer {
 
     private void remapVertexes() {
         remappedVertexes = new ArrayList<>();
-        for (Vector2D v : wadData.vertexes) {
+        for (Vector2D v : wadDataService.vertexes) {
             remappedVertexes.add(new Vector2D(remapX(v.x), remapY(v.y)));
         }
     }
@@ -98,7 +98,7 @@ public class MapRenderer {
     public void drawLinedefs(Graphics2D g2d) {
         g2d.setColor(Color.RED);
         g2d.setStroke(new BasicStroke(1));
-        for (Linedef line : wadData.linedefs) {
+        for (Linedef line : wadDataService.linedefs) {
             if (line.startVertexId < 0 || line.startVertexId >= remappedVertexes.size() ||
                     line.endVertexId < 0 || line.endVertexId >= remappedVertexes.size()) continue;
 
@@ -153,8 +153,8 @@ public class MapRenderer {
     }
 
     public void drawNode(Graphics2D g2d, int nodeId) {
-        if (nodeId < 0 || nodeId >= wadData.nodes.size()) return;
-        Node node = wadData.nodes.get(nodeId);
+        if (nodeId < 0 || nodeId >= wadDataService.nodes.size()) return;
+        Node node = wadDataService.nodes.get(nodeId);
 
         // Draw partition line
         double x1p = remapX(node.xPartition);

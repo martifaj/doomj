@@ -1,5 +1,6 @@
 package com.doomviewer.audio;
 
+import com.doomviewer.services.AudioService;
 import javax.sound.sampled.*;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -9,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class SoundEngine {
+public class SoundEngine implements AudioService {
     private static final Logger LOGGER = Logger.getLogger(SoundEngine.class.getName());
     private static SoundEngine instance;
     
@@ -18,8 +19,13 @@ public class SoundEngine {
     private boolean enabled = true;
     private float masterVolume = 1.0f;
     
-    private SoundEngine() {
+    public SoundEngine() {
         // Start with a lower master volume to prevent distortion
+        this.masterVolume = 0.3f;
+    }
+    
+    private SoundEngine(boolean unused) {
+        // Private constructor for singleton pattern (deprecated)
         this.masterVolume = 0.3f;
     }
     

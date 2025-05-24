@@ -11,7 +11,7 @@ public class StateDef {
         this.spriteName = spriteName;
         this.frameData = frameData;
         this.tics = tics;
-        this.action = (action != null) ? action : Actions.NULL_ACTION;
+        this.action = (action != null) ? action : Actions.NULL;
         this.nextState = nextState;
     }
 

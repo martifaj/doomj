@@ -3,6 +3,7 @@ package com.doomviewer.game;
 import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.rendering.SectorRenderInfo;
+import com.doomviewer.services.CollisionService;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Node;
 import com.doomviewer.wad.datatypes.Seg;
@@ -11,7 +12,7 @@ import com.doomviewer.wad.datatypes.SubSector;
 import java.util.List;
 import java.util.logging.Logger;
 
-public class BSP {
+public class BSP implements CollisionService {
     private static final Logger LOGGER = Logger.getLogger(BSP.class.getName());
     public static final int SUB_SECTOR_IDENTIFIER = 0x8000; // 2^15 = 32768
     private boolean doorDebugPrinted = false;
@@ -26,7 +27,7 @@ public class BSP {
 
     public BSP(DoomEngine engine) {
         this.engine = engine;
-        this.player = engine.getPlayer();
+        this.player = null; // Will be set when update() is called
         this.nodes = engine.getWadData().nodes;
         this.subSectors = engine.getWadData().subSectors;
         this.segs = engine.getWadData().segments;
@@ -35,6 +36,15 @@ public class BSP {
     }
 
     public void update() {
+        // Get player reference if not already set
+        if (this.player == null) {
+            this.player = engine.getPlayer();
+        }
+        // Skip update if player is still not available
+        if (this.player == null) {
+            return;
+        }
+        
         this.isTraverseBsp = true; // Reset before each traversal
         renderBspNode(this.rootNodeId);
     }
@@ -106,6 +116,7 @@ public class BSP {
         return this.subSectors.get(subSectorIdx);
     }
 
+    @Override
     public double getSubSectorHeightAt(double x, double y) {
         SectorRenderInfo info = getSectorRenderInfoAt(x, y);
         return info.floorHeight;

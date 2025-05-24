@@ -1,7 +1,6 @@
 package com.doomviewer.wad;
 
 import com.doomviewer.audio.SoundEngine;
-import com.doomviewer.audio.SoundKey;
 import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.wad.assets.AssetData;
 import com.doomviewer.wad.datatypes.*;
@@ -15,8 +14,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class WADData {
-    private static final Logger LOGGER = Logger.getLogger(WADData.class.getName());
+public class WADDataService {
+    private static final Logger LOGGER = Logger.getLogger(WADDataService.class.getName());
 
     public static final Map<String, Integer> LUMP_INDICES_MAP = Collections.unmodifiableMap(
         Map.of(
@@ -62,7 +61,7 @@ public class WADData {
     public AssetData assetData;
 
 
-    public WADData(String wadPath, String mapName) throws IOException {
+    public WADDataService(String wadPath, String mapName) throws IOException {
         this.reader = new WADReader(wadPath);
         this.mapName = mapName.toUpperCase();
         this.mapLumpIndex = getLumpIndexByName(this.mapName);

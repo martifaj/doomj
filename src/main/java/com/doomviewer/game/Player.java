@@ -1,51 +1,49 @@
 package com.doomviewer.game;
 
-import com.doomviewer.game.objects.StateDef;
-import com.doomviewer.game.objects.StateNum;
-import com.doomviewer.misc.InputHandler;
+import com.doomviewer.audio.SoundEngine;
+import com.doomviewer.config.GameConfiguration;
+import com.doomviewer.game.objects.*;
 import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.math.Vector2D;
-import com.doomviewer.game.objects.GameDefinitions;
-import com.doomviewer.game.objects.MapObject;
-import com.doomviewer.game.objects.MobjType;
-import com.doomviewer.game.objects.Projectile;
+import com.doomviewer.services.*;
 import com.doomviewer.wad.assets.AssetData;
 import com.doomviewer.wad.datatypes.Thing;
-import com.doomviewer.audio.SoundEngine;
 
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Logger;
 
 public class Player extends MapObject {
     private static final Logger LOGGER = Logger.getLogger(Player.class.getName());
-    private DoomEngine engine; // For direct access like input, delta time
+    private final GameConfiguration config;
+    private final CollisionService collisionService;
+    private final AudioService audioService;
+    private final InputService inputService;
+    private final ObjectManager objectManager;
+    private final DoorService doorService;
+    private final GameEngineTmp gameEngineTmp;
+
     public Vector2D pos;
     public double angle; // degrees
     private final double DIAG_MOVE_CORR = 1 / Math.sqrt(2);
     public double height; // Player's eye height from the base (0 level)
     public double floorHeight; // Height of the floor under the player
-    
+
     // Weapons and HUD
     private WeaponType currentWeapon;
     private boolean[] ownedWeapons;
     private Map<AmmoType, Integer> ammo;
     private PlayerHUD hud;
-    
+
     // Player stats
     private int maxHealth = 100;
     private int armor = 0;
     private int maxArmor = 200;
     private boolean hasBackpack = false;
-    
+
     // Keys
     private Set<KeyType> keys;
-    
+
     // Weapon state machine (following original Doom)
     private StateNum weaponState;
     private StateDef weaponStateDef;
@@ -55,9 +53,16 @@ public class Player extends MapObject {
     private WeaponType pendingWeaponType;
     private AssetData assetData; // Store AssetData for HUD access
 
-    public Player(DoomEngine engine, Thing playerThing, GameDefinitions gameDefinitions, AssetData assetData) {
-        super(playerThing, gameDefinitions, assetData, engine); // This sets up pos, angle, info, type, health, flags, initial state
-        this.engine = engine;
+    public Player(Thing playerThing, GameDefinitions gameDefinitions, AssetData assetData,
+                  GameConfiguration config, CollisionService collisionService, AudioService audioService,
+                  InputService inputService, ObjectManager objectManager, DoorService doorService, GameEngineTmp gameEngineTmp) {
+        super(playerThing, gameDefinitions, assetData, collisionService, audioService, gameEngineTmp, objectManager);
+        this.config = config;
+        this.collisionService = collisionService;
+        this.audioService = audioService;
+        this.inputService = inputService;
+        this.objectManager = objectManager;
+        this.doorService = doorService;
         this.assetData = assetData; // Store AssetData for HUD access
         this.pos = new Vector2D(playerThing.pos.x, playerThing.pos.y);
         // The Python code uses it directly, implying it's degrees.
@@ -69,38 +74,38 @@ public class Player extends MapObject {
         // For now, let's match Python's direct use. If playerThing.angle is BAMS, then rotateIp needs BAMS-like angle or conversion here.
         // Python's rotate_ip takes degrees. So player.angle must be degrees.
         this.angle = ((playerThing.angle & 0xFFFF) / 65536.0) * 360.0; // Correct for unsigned 16-bit BAMS
+        this.gameEngineTmp = gameEngineTmp;
         this.angle %= 360.0;
-        
+
         // Set player collision radius to match standard Doom player size
         this.renderRadius = getPlayerRadius();
-        
 
 
-        this.height = Constants.PLAYER_HEIGHT; // Initial height relative to floor
+        this.height = config.getPlayerHeight(); // Initial height relative to floor
         this.floorHeight = 0;
-        
+
         // Initialize weapons and ammo
         initializeWeaponsAndAmmo();
-        
+
         // Set starting health to 100%
         this.health = 100;
+        this.setTarget(this);
     }
 
     // Override update from MapObject. Player doesn't use the generic state machine for its primary logic.
-    @Override
-    public void update(DoomEngine engine) {
+    public void update() {
         // Do NOT call super.update(engine) if player doesn't use the mobj state tics for its main loop.
         // If player has visual states (like pain, death anims), those could potentially use
         // a simplified version of the state machine, but movement/actions are direct.
         updateHeightAndZ();
         control();
-        
+
         // Handle weapon input and update weapon state machine
         updateWeaponStateMachine();
-        
+
         // Check for automatic pickups
         checkForPickups();
-        
+
         // CRITICAL: Sync Player position with MapObject position for AI targeting
         super.pos.x = this.pos.x;
         super.pos.y = this.pos.y;
@@ -111,7 +116,7 @@ public class Player extends MapObject {
         // This method should update this.floorHeight (inherited/available)
         // and this.z (the MapObject's base Z coordinate).
         // Use the new BSP method that takes player's current position
-        this.floorHeight = engine.getBsp().getSubSectorHeightAt(this.pos.x, this.pos.y);
+        this.floorHeight = collisionService.getSubSectorHeightAt(this.pos.x, this.pos.y);
         this.z = this.floorHeight; // Update z immediately after floorHeight
 
         // Simple gravity/floor collision for player's base Z
@@ -121,9 +126,9 @@ public class Player extends MapObject {
     }
 
     private void control() {
-        double speed = Constants.PLAYER_SPEED * engine.getDeltaTime();
-        double rotSpeed = Constants.PLAYER_ROT_SPEED * engine.getDeltaTime();
-        InputHandler input = engine.getInputHandler();
+        double speed = config.getPlayerSpeed() * gameEngineTmp.getDeltaTime();
+        double rotSpeed = config.getPlayerRotSpeed() * gameEngineTmp.getDeltaTime();
+        InputService input = inputService;
 
         // Check if Shift is pressed for running (double speed)
         boolean isRunning = input.isKeyPressed(KeyEvent.VK_SHIFT);
@@ -160,6 +165,7 @@ public class Player extends MapObject {
 
     /**
      * Apply movement with collision detection and wall sliding
+     *
      * @param dx Desired X movement
      * @param dy Desired Y movement
      */
@@ -167,26 +173,26 @@ public class Player extends MapObject {
         Vector2D currentPos = new Vector2D(this.pos.x, this.pos.y);
         Vector2D desiredPos = new Vector2D(this.pos.x + dx, this.pos.y + dy);
         double radius = getPlayerRadius();
-        
+
         // Try full movement first
-        Vector2D safePos = engine.getBsp().getSafeMovementPosition(currentPos, desiredPos, radius);
-        
+        Vector2D safePos = collisionService.getSafeMovementPosition(currentPos, desiredPos, radius, false);
+
         // If we couldn't move fully, try sliding along walls
         if (Vector2D.distance(safePos, desiredPos) > 1.0) {
             // Debug: uncomment to see collision blocking
             // Try X movement only (slide along Y-axis walls)
             Vector2D xOnlyPos = new Vector2D(this.pos.x + dx, this.pos.y);
-            Vector2D safeXOnly = engine.getBsp().getSafeMovementPosition(currentPos, xOnlyPos, radius);
-            
+            Vector2D safeXOnly = collisionService.getSafeMovementPosition(currentPos, xOnlyPos, radius, false);
+
             // Try Y movement only (slide along X-axis walls) 
             Vector2D yOnlyPos = new Vector2D(this.pos.x, this.pos.y + dy);
-            Vector2D safeYOnly = engine.getBsp().getSafeMovementPosition(currentPos, yOnlyPos, radius);
-            
+            Vector2D safeYOnly = collisionService.getSafeMovementPosition(currentPos, yOnlyPos, radius, false);
+
             // Choose the movement that gets us furthest
             double xDistance = Vector2D.distance(currentPos, safeXOnly);
             double yDistance = Vector2D.distance(currentPos, safeYOnly);
             double fullDistance = Vector2D.distance(currentPos, safePos);
-            
+
             if (fullDistance >= Math.max(xDistance, yDistance)) {
                 // Full movement is best
                 this.pos.x = safePos.x;
@@ -236,11 +242,11 @@ public class Player extends MapObject {
     //         setState(info.painState); // Or player-specific pain
     //     }
     // }
-    
+
     public MapObject getMapObject() {
         return this; // Player extends MapObject
     }
-    
+
     private void initializeWeaponsAndAmmo() {
         // Initialize weapon ownership - give all weapons for testing
         ownedWeapons = new boolean[WeaponType.values().length];
@@ -251,21 +257,21 @@ public class Player extends MapObject {
         ownedWeapons[WeaponType.PLASMA_RIFLE.id] = true;
         ownedWeapons[WeaponType.BFG.id] = true;
         currentWeapon = WeaponType.PISTOL;
-        
+
         // Initialize ammo - give plenty for testing
         ammo = new EnumMap<>(AmmoType.class);
         ammo.put(AmmoType.BULLETS, 200);    // Max bullets
         ammo.put(AmmoType.SHELLS, 50);      // Max shells
         ammo.put(AmmoType.ROCKETS, 50);     // Max rockets
         ammo.put(AmmoType.CELLS, 300);      // Max cells
-        
+
         // Initialize keys
         keys = EnumSet.noneOf(KeyType.class);
-        
+
         // Initialize HUD
         hud = new PlayerHUD(this);
         hud.setAssetData(this.assetData); // Pass AssetData to HUD
-        
+
         // Initialize weapon state machine
         weaponState = getReadyStateForWeapon(currentWeapon);
         weaponStateDef = getGameDefinitions().getState(weaponState);
@@ -273,34 +279,34 @@ public class Player extends MapObject {
         attackdown = false;
         pendingweapon = false;
     }
-    
+
     public WeaponType getCurrentWeapon() {
         return currentWeapon;
     }
-    
+
     public int getAmmo(AmmoType ammoType) {
         return ammo.getOrDefault(ammoType, 0);
     }
-    
+
     public void addAmmo(AmmoType ammoType, int amount) {
         int current = ammo.getOrDefault(ammoType, 0);
         int maxCapacity = getMaxAmmoCapacity(ammoType);
         int newAmount = Math.min(current + amount, maxCapacity);
         ammo.put(ammoType, newAmount);
     }
-    
+
     public int getMaxAmmoCapacity(AmmoType ammoType) {
         return hasBackpack ? ammoType.maxAmmo * 2 : ammoType.maxAmmo;
     }
-    
+
     public boolean hasWeapon(WeaponType weapon) {
         return ownedWeapons[weapon.id];
     }
-    
+
     public void giveWeapon(WeaponType weapon) {
         ownedWeapons[weapon.id] = true;
     }
-    
+
     public boolean switchWeapon(WeaponType weapon) {
         if (hasWeapon(weapon) && currentWeapon != weapon) {
             // For now, do immediate weapon switch (can add lowering/raising animation later)
@@ -310,10 +316,10 @@ public class Player extends MapObject {
         }
         return false;
     }
-    
+
     private void updateWeaponStateMachine() {
-        InputHandler input = engine.getInputHandler();
-        
+        InputService input = inputService;
+
         // Handle weapon switching (1-6 keys)
         if (input.isKeyPressed(KeyEvent.VK_1)) switchWeapon(WeaponType.PISTOL);
         if (input.isKeyPressed(KeyEvent.VK_2)) switchWeapon(WeaponType.SHOTGUN);
@@ -321,10 +327,10 @@ public class Player extends MapObject {
         if (input.isKeyPressed(KeyEvent.VK_4)) switchWeapon(WeaponType.ROCKET_LAUNCHER);
         if (input.isKeyPressed(KeyEvent.VK_5)) switchWeapon(WeaponType.PLASMA_RIFLE);
         if (input.isKeyPressed(KeyEvent.VK_6)) switchWeapon(WeaponType.BFG);
-        
+
         // Track attack button state
         boolean firePressed = input.isKeyPressed(KeyEvent.VK_SPACE) || input.isKeyPressed(KeyEvent.VK_CONTROL);
-        
+
         if (firePressed && !attackdown) {
             attackdown = true;
             // Attempt to fire if weapon is ready
@@ -335,63 +341,63 @@ public class Player extends MapObject {
         } else if (!firePressed) {
             attackdown = false;
         }
-        
+
         // Use key for doors and interactions
         if (input.isKeyPressed(KeyEvent.VK_ENTER)) {
             tryUseAction();
         }
-        
+
         // Update weapon state machine
         if (weaponTics > 0) {
             weaponTics--;
         }
-        
+
         if (weaponTics <= 0) {
             // Execute weapon action and transition to next state
             if (weaponStateDef.action != null) {
-                weaponStateDef.action.execute(this, engine);
+                weaponStateDef.action.execute(this, objectManager, this, audioService, gameEngineTmp, collisionService);
             }
-            
+
             setWeaponState(weaponStateDef.nextState);
         }
     }
-    
+
     private boolean isWeaponReady() {
         return weaponState == getReadyStateForWeapon(currentWeapon);
     }
-    
+
     private void startWeaponFiring() {
         AmmoType requiredAmmo = getAmmoTypeForWeapon(currentWeapon);
         int currentAmmoCount = getAmmo(requiredAmmo);
-        
+
         if (currentAmmoCount >= currentWeapon.ammoPerShot) {
             // Consume ammo
             ammo.put(requiredAmmo, currentAmmoCount - currentWeapon.ammoPerShot);
-            
+
             // Create projectile based on weapon type
             createProjectileForWeapon();
-            
+
             // Start weapon firing state
             setWeaponState(getFireStateForWeapon(currentWeapon));
-            
+
         } else {
             // No ammo click sound would go here
         }
     }
-    
+
     private void createProjectileForWeapon() {
         MobjType projectileType = getProjectileTypeForWeapon(currentWeapon);
         if (projectileType != null) {
             // Calculate firing position (slightly in front of player)
             double fireAngleRad = Math.toRadians(this.angle);
             Vector2D firePos = new Vector2D(
-                this.pos.x + Math.cos(fireAngleRad) * (this.renderRadius + 16),
-                this.pos.y + Math.sin(fireAngleRad) * (this.renderRadius + 16)
+                    this.pos.x + Math.cos(fireAngleRad) * (this.renderRadius + 16),
+                    this.pos.y + Math.sin(fireAngleRad) * (this.renderRadius + 16)
             );
-            
+
             // Create projectile through ObjectManager
-            engine.getObjectManager().createProjectile(projectileType, firePos, this.angle, this);
-            
+            objectManager.createProjectile(projectileType, firePos, this.angle, this);
+
             // Play weapon sound
             playWeaponSound();
         } else {
@@ -400,7 +406,7 @@ public class Player extends MapObject {
             performHitscanAttack();
         }
     }
-    
+
     private MobjType getProjectileTypeForWeapon(WeaponType weapon) {
         switch (weapon) {
             case ROCKET_LAUNCHER:
@@ -413,20 +419,20 @@ public class Player extends MapObject {
                 return null; // Hitscan weapons
         }
     }
-    
+
     private void performHitscanAttack() {
         // For hitscan weapons (pistol, shotgun, chaingun)
         // This would implement instant hit logic
         // For now, just create a muzzle flash effect
-        System.out.println("Player fired " + currentWeapon.name + " (hitscan)");
-        
+        LOGGER.info("Player fired " + currentWeapon.name + " (hitscan)");
+
         // TODO: Implement hitscan collision detection
         // - Cast ray from player position in facing direction
         // - Check for enemy hits using BSP traversal
         // - Apply damage to first target hit
         // - Create bullet puff effect at impact point
     }
-    
+
     private void playWeaponSound() {
         // Play appropriate weapon sound
         String soundName = getWeaponSoundName(currentWeapon);
@@ -435,7 +441,7 @@ public class Player extends MapObject {
             System.out.println("Playing weapon sound: " + soundName);
         }
     }
-    
+
     private String getWeaponSoundName(WeaponType weapon) {
         switch (weapon) {
             case PISTOL:
@@ -454,38 +460,52 @@ public class Player extends MapObject {
                 return null;
         }
     }
-    
+
     private void setWeaponState(StateNum newState) {
         weaponState = newState;
         weaponStateDef = getGameDefinitions().getState(weaponState);
         weaponTics = weaponStateDef.tics;
     }
-    
+
     private StateNum getReadyStateForWeapon(WeaponType weapon) {
         switch (weapon) {
-            case PISTOL: return StateNum.S_PISTOL;
-            case SHOTGUN: return StateNum.S_SGUN;
-            case CHAINGUN: return StateNum.S_CHAIN;
-            case ROCKET_LAUNCHER: return StateNum.S_MISSILE;
-            case PLASMA_RIFLE: return StateNum.S_PLASMA;
-            case BFG: return StateNum.S_BFG;
-            default: return StateNum.S_PISTOL;
+            case PISTOL:
+                return StateNum.S_PISTOL;
+            case SHOTGUN:
+                return StateNum.S_SGUN;
+            case CHAINGUN:
+                return StateNum.S_CHAIN;
+            case ROCKET_LAUNCHER:
+                return StateNum.S_MISSILE;
+            case PLASMA_RIFLE:
+                return StateNum.S_PLASMA;
+            case BFG:
+                return StateNum.S_BFG;
+            default:
+                return StateNum.S_PISTOL;
         }
     }
-    
+
     private StateNum getFireStateForWeapon(WeaponType weapon) {
         switch (weapon) {
-            case PISTOL: return StateNum.S_PISTOL1;
-            case SHOTGUN: return StateNum.S_SGUN1;
-            case CHAINGUN: return StateNum.S_CHAIN1;
-            case ROCKET_LAUNCHER: return StateNum.S_MISSILE1;
-            case PLASMA_RIFLE: return StateNum.S_PLASMA1;
-            case BFG: return StateNum.S_BFG1;
-            default: return StateNum.S_PISTOL1;
+            case PISTOL:
+                return StateNum.S_PISTOL1;
+            case SHOTGUN:
+                return StateNum.S_SGUN1;
+            case CHAINGUN:
+                return StateNum.S_CHAIN1;
+            case ROCKET_LAUNCHER:
+                return StateNum.S_MISSILE1;
+            case PLASMA_RIFLE:
+                return StateNum.S_PLASMA1;
+            case BFG:
+                return StateNum.S_BFG1;
+            default:
+                return StateNum.S_PISTOL1;
         }
     }
-    
-    
+
+
     private AmmoType getAmmoTypeForWeapon(WeaponType weapon) {
         switch (weapon) {
             case PISTOL:
@@ -502,26 +522,26 @@ public class Player extends MapObject {
                 return AmmoType.BULLETS;
         }
     }
-    
+
     private double normalizeAngle(double angle) {
         while (angle < -180) angle += 360;
         while (angle > 180) angle -= 360;
         return angle;
     }
-    
+
     public PlayerHUD getHUD() {
         return hud;
     }
-    
+
     public void takeDamage(int amount) {
         health -= amount;
         hud.onPlayerDamage(); // Notify HUD of damage for pain face
-        
+
         if (health <= 0) {
             // Player death logic would go here
         }
     }
-    
+
     public String getCurrentWeaponSprite() {
         if (weaponStateDef != null) {
             // Generate weapon sprite name with rotation 0 instead of 1
@@ -531,55 +551,55 @@ public class Player extends MapObject {
         }
         return currentWeapon.spriteName; // Fallback
     }
-    
+
     public boolean isAttackDown() {
         return attackdown;
     }
-    
+
     // Key management methods
     public void addKey(KeyType keyType) {
         keys.add(keyType);
         LOGGER.info("Player picked up: " + keyType.name);
     }
-    
+
     public boolean hasKey(KeyType keyType) {
         return keys.stream().anyMatch(key -> key.matches(keyType));
     }
-    
+
     public Set<KeyType> getKeys() {
         return keys;
     }
-    
+
     public int getArmor() {
         return armor;
     }
-    
+
     public int getMaxArmor() {
         return maxArmor;
     }
-    
+
     public int getMaxHealth() {
         return maxHealth;
     }
-    
+
     public boolean hasBackpack() {
         return hasBackpack;
     }
-    
+
     private void tryUseAction() {
         // Try to use doors within range (64 units, standard DOOM use range)
-        boolean doorUsed = engine.getDoorManager().tryUseDoor(this, this.pos, 64.0);
+        boolean doorUsed = doorService.tryUseDoor(this, this.pos, 64.0);
         LOGGER.info("Door use attempt: " + (doorUsed ? "SUCCESS" : "FAILED"));
-        
+
         if (!doorUsed) {
             // Try to pick up items
             tryPickupItems();
         }
     }
-    
+
     private void tryPickupItems() {
         // Check for keys and other items near the player (for use action)
-        for (MapObject obj : engine.getObjectManager().getMapObjects()) {
+        for (MapObject obj : objectManager.getMapObjects()) {
             if (Vector2D.distance(obj.pos, this.pos) <= 32.0) { // Pickup range
                 if (tryPickupObject(obj)) {
                     break; // Only pick up one item per use
@@ -587,30 +607,30 @@ public class Player extends MapObject {
             }
         }
     }
-    
+
     private void checkForPickups() {
         // Automatic pickup system - runs every frame
         List<MapObject> objectsToRemove = new ArrayList<>();
-        
-        for (MapObject obj : engine.getObjectManager().getMapObjects()) {
+
+        for (MapObject obj : objectManager.getMapObjects()) {
             double distance = Vector2D.distance(obj.pos, this.pos);
-            
+
             // Different pickup ranges for different items
             double pickupRange = getPickupRange(obj);
-            
+
             if (distance <= pickupRange) {
                 if (tryPickupObject(obj)) {
                     objectsToRemove.add(obj);
                 }
             }
         }
-        
+
         // Remove picked up objects
         for (MapObject obj : objectsToRemove) {
-            engine.getObjectManager().removeObject(obj);
+            objectManager.removeObject(obj);
         }
     }
-    
+
     private double getPickupRange(MapObject obj) {
         // Different pickup ranges based on item type
         switch (obj.type) {
@@ -621,7 +641,7 @@ public class Player extends MapObject {
             case MT_YELLOWSKULL:
             case MT_REDSKULL:
                 return 24.0; // Keys require closer contact
-            
+
             case MT_STIMPACK:
             case MT_MEDIKIT:
             case MT_SOULSPHERE:
@@ -630,7 +650,7 @@ public class Player extends MapObject {
             case MT_HEALTH_BONUS:
             case MT_ARMOR_BONUS:
                 return 20.0; // Health/armor items
-                
+
             case MT_CLIP:
             case MT_AMMO:
             case MT_SHELLS:
@@ -639,7 +659,7 @@ public class Player extends MapObject {
             case MT_CELLPACK:
             case MT_BACKPACK:
                 return 20.0; // Ammo items
-                
+
             case MT_SHOTGUN:
             case MT_CHAINGUN:
             case MT_MISSILE:
@@ -647,7 +667,7 @@ public class Player extends MapObject {
             case MT_CHAINSAW:
             case MT_SUPERSHOTGUN:
                 return 24.0; // Weapons
-                
+
             case MT_INVULNERABILITY:
             case MT_BERSERK:
             case MT_INVISIBILITY:
@@ -655,12 +675,12 @@ public class Player extends MapObject {
             case MT_COMPUTER_MAP:
             case MT_LIGHT_AMP:
                 return 20.0; // Power-ups
-                
+
             default:
                 return 32.0; // Default range
         }
     }
-    
+
     private boolean tryPickupObject(MapObject obj) {
         switch (obj.type) {
             // Keys
@@ -671,7 +691,7 @@ public class Player extends MapObject {
             case MT_YELLOWSKULL:
             case MT_REDSKULL:
                 return tryPickupKey(obj);
-                
+
             // Health items
             case MT_STIMPACK:
                 return tryPickupHealth(10);
@@ -681,7 +701,7 @@ public class Player extends MapObject {
                 return tryPickupSoulsphere();
             case MT_HEALTH_BONUS:
                 return tryPickupHealthBonus();
-                
+
             // Armor items
             case MT_GREENARMOR:
                 return tryPickupArmor(100, false);
@@ -689,7 +709,7 @@ public class Player extends MapObject {
                 return tryPickupArmor(200, true);
             case MT_ARMOR_BONUS:
                 return tryPickupArmorBonus();
-                
+
             // Ammo items
             case MT_CLIP:
                 return tryPickupAmmo(AmmoType.BULLETS, 10);
@@ -705,7 +725,7 @@ public class Player extends MapObject {
                 return tryPickupAmmo(AmmoType.CELLS, 100);
             case MT_BACKPACK:
                 return tryPickupBackpack();
-                
+
             // Weapons
             case MT_SHOTGUN:
                 return tryPickupWeapon(WeaponType.SHOTGUN, AmmoType.SHELLS, 8);
@@ -719,7 +739,7 @@ public class Player extends MapObject {
                 return tryPickupWeapon(WeaponType.PISTOL, null, 0); // Chainsaw doesn't use ammo
             case MT_SUPERSHOTGUN:
                 return tryPickupWeapon(WeaponType.SHOTGUN, AmmoType.SHELLS, 8); // Treat as shotgun for now
-                
+
             // Power-ups (placeholder - these would need timer/effect system)
             case MT_INVULNERABILITY:
             case MT_BERSERK:
@@ -728,12 +748,12 @@ public class Player extends MapObject {
             case MT_COMPUTER_MAP:
             case MT_LIGHT_AMP:
                 return tryPickupPowerup(obj.type);
-                
+
             default:
                 return false; // Not a pickup item
         }
     }
-    
+
     private boolean tryPickupKey(MapObject obj) {
         KeyType keyType = KeyType.fromThingType(obj.info.doomednum);
         if (keyType != null) {
@@ -743,7 +763,7 @@ public class Player extends MapObject {
         }
         return false;
     }
-    
+
     private boolean tryPickupHealth(int amount) {
         if (health < maxHealth) {
             health = Math.min(health + amount, maxHealth);
@@ -753,7 +773,7 @@ public class Player extends MapObject {
         }
         return false;
     }
-    
+
     private boolean tryPickupSoulsphere() {
         health = Math.min(health + 100, 200); // Soulsphere can exceed normal max health
         maxHealth = Math.max(maxHealth, 200); // Increase max health if needed
@@ -761,7 +781,7 @@ public class Player extends MapObject {
         LOGGER.info("Picked up Soulsphere! Health: " + health);
         return true;
     }
-    
+
     private boolean tryPickupHealthBonus() {
         if (health < 200) { // Health bonus can go up to 200
             health = Math.min(health + 1, 200);
@@ -771,7 +791,7 @@ public class Player extends MapObject {
         }
         return false;
     }
-    
+
     private boolean tryPickupArmor(int amount, boolean isMegaArmor) {
         if (isMegaArmor || armor < amount) {
             armor = amount;
@@ -782,7 +802,7 @@ public class Player extends MapObject {
         }
         return false;
     }
-    
+
     private boolean tryPickupArmorBonus() {
         if (armor < 200) { // Armor bonus can go up to 200
             armor = Math.min(armor + 1, 200);
@@ -792,7 +812,7 @@ public class Player extends MapObject {
         }
         return false;
     }
-    
+
     private boolean tryPickupAmmo(AmmoType ammoType, int amount) {
         int currentAmmo = getAmmo(ammoType);
         int maxCapacity = getMaxAmmoCapacity(ammoType);
@@ -804,7 +824,7 @@ public class Player extends MapObject {
         }
         return false;
     }
-    
+
     private boolean tryPickupBackpack() {
         if (!hasBackpack) {
             // Backpack doubles max ammo capacity and gives some ammo
@@ -818,11 +838,11 @@ public class Player extends MapObject {
         }
         return false; // Already have backpack
     }
-    
+
     private boolean tryPickupWeapon(WeaponType weapon, AmmoType ammoType, int ammoAmount) {
         boolean hadWeapon = hasWeapon(weapon);
         giveWeapon(weapon);
-        
+
         boolean pickedUpAmmo = false;
         if (ammoType != null && ammoAmount > 0) {
             // Don't play sound here - tryPickupAmmo will play its own sound if successful
@@ -833,7 +853,7 @@ public class Player extends MapObject {
                 pickedUpAmmo = true;
             }
         }
-        
+
         if (!hadWeapon) {
             SoundEngine.getInstance().playSound("DSWPNUP");
             LOGGER.info("Picked up weapon: " + weapon.name());
@@ -843,10 +863,10 @@ public class Player extends MapObject {
             LOGGER.info("Picked up ammo from weapon: " + weapon.name());
             return true;
         }
-        
+
         return false; // Already had weapon and didn't need ammo
     }
-    
+
     private boolean tryPickupPowerup(MobjType powerupType) {
         // Placeholder for power-up effects - would need timer system
         SoundEngine.getInstance().playSound("DSGETPOW");

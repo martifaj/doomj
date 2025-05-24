@@ -183,7 +183,7 @@ public class AssetData {
             String lumpNameUpper = lumpInfo.lumpName.toUpperCase();
 
             if (lumpNameUpper.startsWith("BEXP")) {
-                System.out.println("Loading explosion sprite: " + lumpNameUpper + " (size: " + lumpInfo.lumpSize + ")");
+                LOGGER.info("Loading explosion sprite: " + lumpNameUpper + " (size: " + lumpInfo.lumpSize + ")");
             }
             
             Patch patch = new Patch(this, lumpNameUpper, true); // Use uppercase consistently

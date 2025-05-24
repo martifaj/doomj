@@ -1,39 +1,48 @@
 package com.doomviewer.game;
 
-import com.doomviewer.misc.InputHandler;
-import com.doomviewer.misc.Constants;
+import com.doomviewer.config.GameConfiguration;
 import com.doomviewer.game.objects.GameDefinitions;
-import com.doomviewer.rendering.FrameBuffer; // Import the new Framebuffer class
+import com.doomviewer.misc.Constants;
+import com.doomviewer.misc.InputHandler;
+import com.doomviewer.rendering.FrameBuffer;
 import com.doomviewer.rendering.MapRenderer;
 import com.doomviewer.rendering.SegHandler;
 import com.doomviewer.rendering.ViewRenderer;
-import com.doomviewer.wad.WADData;
+import com.doomviewer.services.AudioService;
+import com.doomviewer.services.CollisionService;
+import com.doomviewer.services.GameEngineTmp;
+import com.doomviewer.services.InputService;
+import com.doomviewer.wad.WADDataService;
+import com.doomviewer.wad.datatypes.Thing;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
-import java.util.logging.Logger;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
-public class DoomEngine extends JPanel implements Runnable {
+public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
 
     private final String wadPath;
     private final String mapName;
+    private final GameConfiguration config;
+    private final AudioService audioService;
+    private final InputService inputService;
+    private CollisionService collisionService;
 
     private JFrame frame;
     private boolean running = false;
-    private final InputHandler inputHandler;
 
     // --- Double buffering for screen image ---
     private final FrameBuffer visibleScreenBuffer;
     private final FrameBuffer renderScreenBuffer;
-    
+
     // --- Depth buffer for sprite occlusion ---
     private final double[] depthBuffer; // Depth value for each pixel [WIDTH * HEIGHT]
     private final Object screenLock = new Object(); // For synchronizing access to visibleScreenImage
     // --- End double buffering fields ---
 
-    private WADData wadData;
+    private WADDataService wadDataService;
     private MapRenderer mapRenderer;
     private Player player;
     private DoorManager doorManager;
@@ -48,54 +57,60 @@ public class DoomEngine extends JPanel implements Runnable {
     private boolean showMap = false;
     private int currentSkillLevel = 1; // Default to Skill 1 (I'm Too Young To Die - Easy)
 
-    public DoomEngine(String wadPath, String mapName) {
+    public DoomEngine(String wadPath, String mapName, GameConfiguration config,
+                      AudioService audioService, InputService inputService) {
         this.wadPath = wadPath;
         this.mapName = mapName;
+        this.config = config;
+        this.audioService = audioService;
+        this.inputService = inputService;
 
-        this.inputHandler = new InputHandler();
-        setPreferredSize(new Dimension(Constants.WIDTH, Constants.HEIGHT));
+        setPreferredSize(new Dimension(config.getWidth(), config.getHeight()));
         setFocusable(true);
-        addKeyListener(inputHandler);
+        if (inputService instanceof InputHandler) {
+            addKeyListener((InputHandler) inputService);
+        }
 
         // Initialize screen images for double buffering
-        visibleScreenBuffer = new FrameBuffer(Constants.WIDTH, Constants.HEIGHT);
-        renderScreenBuffer = new FrameBuffer(Constants.WIDTH, Constants.HEIGHT);
-        
+        visibleScreenBuffer = new FrameBuffer(config.getWidth(), config.getHeight());
+        renderScreenBuffer = new FrameBuffer(config.getWidth(), config.getHeight());
+
         // Initialize depth buffer
-        depthBuffer = new double[Constants.WIDTH * Constants.HEIGHT];
+        depthBuffer = new double[config.getWidth() * config.getHeight()];
 
     }
 
     private void onInit() throws IOException {
-        wadData = new WADData(wadPath, mapName); // wadData needs to be initialized first
+        wadDataService = new WADDataService(wadPath, mapName); // wadData needs to be initialized first
 
         // Player needs to be initialized before ObjectManager, as ObjectManager creates MapObjects
         // which might depend on the player (e.g., for initial floor height or as a target).
-        com.doomviewer.wad.datatypes.Thing playerThing = null;
-        if (wadData.things != null && !wadData.things.isEmpty()) {
-            playerThing = wadData.things.stream()
-                .filter(t -> t.type == 1) // Assuming type 1 is a player start
-                .findFirst()
-                .orElseGet(() -> wadData.things.get(0));
+        Thing playerThing = null;
+        if (wadDataService.things != null && !wadDataService.things.isEmpty()) {
+            playerThing = wadDataService.things.stream()
+                    .filter(t -> t.type == 1) // Assuming type 1 is a player start
+                    .findFirst()
+                    .orElseGet(() -> wadDataService.things.get(0));
         }
         if (playerThing == null) {
             throw new IOException("Player Thing not found in WAD data for map " + mapName);
         }
-        // Temporarily get GameDefinitions for Player. ObjectManager will create its own instance.
-        // This is a bit of a workaround. Ideally, GameDefinitions is a singleton or passed around.
-        GameDefinitions tempGameDefs = new GameDefinitions(); // Create a temporary instance for the player
-        player = new Player(this, playerThing, tempGameDefs, wadData.assetData);
-
-        // ObjectManager needs WADData and creates its own GameDefinitions
-        objectManager = new ObjectManager(this, wadData);
-        // Now that objectManager is created, if Player needs the final GameDefinitions, update it.
-        // However, Player constructor already took one. If it stores it, it might be the temp one.
-        // For now, let's assume the temp one is sufficient for Player's immediate needs.
-
-        // Initialize door manager
-        doorManager = new DoorManager(wadData, this);
-
+        // Create BSP first since it's needed as collision service
         bsp = new BSP(this);
+        this.collisionService = bsp; // Set BSP as collision service now that wadData is available
+
+        // Create door manager (no dependencies on engine)
+        doorManager = new DoorManager(wadDataService, collisionService);
+
+        // Create shared GameDefinitions instance
+        GameDefinitions gameDefinitions = new GameDefinitions();
+
+        // Create ObjectManager with injected dependencies
+        objectManager = new ObjectManager(this, collisionService, wadDataService, audioService, playerThing);
+
+        // Create Player with injected dependencies
+        player = new Player(playerThing, gameDefinitions, wadDataService.assetData,
+                config, collisionService, audioService, inputService, objectManager, doorManager, this);
         segHandler = new SegHandler(this);
         viewRenderer = new ViewRenderer(this);
         mapRenderer = new MapRenderer(this);
@@ -155,23 +170,27 @@ public class DoomEngine extends JPanel implements Runnable {
         System.exit(0); // Terminate the application
     }
 
+    public void setCollisionService(CollisionService collisionService) {
+        this.collisionService = collisionService;
+    }
+
     private void update() {
         // Clear the render framebuffer (for renderScreenImage)
         renderScreenBuffer.clear(0xFF000000); // Opaque black
-        
+
         // Clear depth buffer (initialize to infinity = no geometry drawn yet)
         java.util.Arrays.fill(depthBuffer, Double.MAX_VALUE);
 
-        player.update(this);
+        player.update();
         segHandler.update();
         bsp.update(); // This will trigger rendering into renderFramebuffer via SegHandler & ViewRenderer
-        objectManager.update();
+        objectManager.update(player);
         doorManager.update(player);
-        
+
         // Draw world sprites (enemies, etc.) to the render buffer with occlusion
         if (viewRenderer != null) {
             // Use the new occlusion-aware sprite rendering
-            viewRenderer.drawWorldSpritesWithOcclusion(renderScreenBuffer.getPixelData(), objectManager.getVisibleSortedMapObjects());
+            viewRenderer.drawWorldSpritesWithOcclusion(renderScreenBuffer.getPixelData(), objectManager.getVisibleSortedMapObjects(player));
         }
 
         // After all rendering to renderScreenImage is complete, copy it to visibleScreenImage
@@ -181,23 +200,23 @@ public class DoomEngine extends JPanel implements Runnable {
             g.dispose();
         }
 
-        if (inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_M) && !mapToggleDebounce) {
+        if (inputService.isKeyPressed(java.awt.event.KeyEvent.VK_M) && !mapToggleDebounce) {
             showMap = !showMap;
             mapToggleDebounce = true;
         }
-        if (!inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_M)) {
+        if (!inputService.isKeyPressed(java.awt.event.KeyEvent.VK_M)) {
             mapToggleDebounce = false;
         }
-        if (inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_ESCAPE)) {
+        if (inputService.isKeyPressed(java.awt.event.KeyEvent.VK_ESCAPE)) {
             running = false;
         }
-        
+
         // Test sound with T key
-        if (inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_T) && !testSoundDebounce) {
-            com.doomviewer.audio.SoundEngine.getInstance().testSound("DSPISTOL");
+        if (inputService.isKeyPressed(java.awt.event.KeyEvent.VK_T) && !testSoundDebounce) {
+            audioService.playSound("DSPISTOL");
             testSoundDebounce = true;
         }
-        if (!inputHandler.isKeyPressed(java.awt.event.KeyEvent.VK_T)) {
+        if (!inputService.isKeyPressed(java.awt.event.KeyEvent.VK_T)) {
             testSoundDebounce = false;
         }
     }
@@ -218,7 +237,7 @@ public class DoomEngine extends JPanel implements Runnable {
         if (viewRenderer != null) { // Ensure viewRenderer is initialized
             viewRenderer.drawSprite(g2d);
         }
-        
+
         // Draw HUD overlay
         if (player != null && player.getHUD() != null) {
             player.getHUD().renderHUD(g2d);
@@ -233,19 +252,43 @@ public class DoomEngine extends JPanel implements Runnable {
         // g2d.dispose(); // Do not dispose g here, it's managed by Swing
     }
 
-    public WADData getWadData() { return wadData; }
-    public Player getPlayer() { return player; }
-    public BSP getBsp() { return bsp; }
-    public SegHandler getSegHandler() { return segHandler; }
-    public ViewRenderer getViewRenderer() { return viewRenderer; }
-    public InputHandler getInputHandler() { return inputHandler; }
-    public double getDeltaTime() { return deltaTime; }
-    public int getCurrentSkillLevel() { return currentSkillLevel; } // Getter for skill level
+    public WADDataService getWadData() {
+        return wadDataService;
+    }
+
+    public Player getPlayer() {
+        return player;
+    }
+
+    public BSP getBsp() {
+        return bsp;
+    }
+
+    public SegHandler getSegHandler() {
+        return segHandler;
+    }
+
+    public ViewRenderer getViewRenderer() {
+        return viewRenderer;
+    }
+
+    public double getDeltaTime() {
+        return deltaTime;
+    }
+
+    public int getCurrentSkillLevel() {
+        return currentSkillLevel;
+    } // Getter for skill level
+
+    @Override
+    public boolean isRunning() {
+        return running;
+    }
 
     public ObjectManager getObjectManager() {
         return objectManager;
     }
-    
+
     public DoorManager getDoorManager() {
         return doorManager;
     }
@@ -254,34 +297,88 @@ public class DoomEngine extends JPanel implements Runnable {
     public int[] getFramebuffer() {
         return renderScreenBuffer.getPixelData();
     }
-    
+
     // Depth buffer for sprite occlusion
     public double[] getDepthBuffer() {
         return depthBuffer;
     }
 
+    private static void printUsage() {
+        System.out.println("DOOM Level Viewer");
+        System.out.println("Usage: java -jar doomj.jar [OPTIONS] [WAD_FILE] [MAP_NAME]");
+        System.out.println();
+        System.out.println("Arguments:");
+        System.out.println("  WAD_FILE    Path to DOOM WAD file (default: DOOM1.WAD)");
+        System.out.println("  MAP_NAME    Map to load (default: E1M1)");
+        System.out.println();
+        System.out.println("Options:");
+        System.out.println("  --nosound, -ns    Disable sound effects");
+        System.out.println("  --help, -h        Show this help message");
+        System.out.println();
+        System.out.println("Examples:");
+        System.out.println("  java -jar doomj.jar DOOM2.WAD MAP01");
+        System.out.println("  java -jar doomj.jar --nosound DOOM1.WAD E1M2");
+        System.out.println("  java -jar doomj.jar -ns");
+    }
+
     public static void main(String[] args) {
         // Configure logging to reduce spam
         Logger rootLogger = Logger.getLogger("");
-        rootLogger.setLevel(Level.ALL);
-        
-        // Set specific loggers for user feedback  
-        Logger.getLogger("com.doomviewer.game.Door").setLevel(Level.INFO);
-        Logger.getLogger("com.doomviewer.game.Player").setLevel(Level.INFO);
-        Logger.getLogger("com.doomviewer.game.DoorManager").setLevel(Level.INFO);
-        Logger.getLogger("com.doomviewer.game.BSP").setLevel(Level.INFO);
-        
-        String wadFilePath = "DOOM1.WAD";
-        String mapToLoad = "E1M5";
+        rootLogger.setLevel(Level.WARNING);
 
-        if (args.length > 0) wadFilePath = args[0];
-        if (args.length > 1) mapToLoad = args[1];
+        // Set specific loggers for user feedback  
+        //Logger.getLogger("com.doomviewer.game.Door").setLevel(Level.INFO);
+        //Logger.getLogger("com.doomviewer.game.Player").setLevel(Level.INFO);
+        //Logger.getLogger("com.doomviewer.game.DoorManager").setLevel(Level.INFO);
+        //Logger.getLogger("com.doomviewer.game.BSP").setLevel(Level.INFO);
+
+        // Parse command line arguments
+        String wadFilePath = "DOOM1.WAD";
+        String mapToLoad = "E1M1";
+        boolean soundEnabled = true;
+
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if (arg.equals("--nosound") || arg.equals("-ns")) {
+                soundEnabled = false;
+            } else if (arg.equals("--help") || arg.equals("-h")) {
+                printUsage();
+                return;
+            } else if (i == 0 && !arg.startsWith("-")) {
+                wadFilePath = arg;
+            } else if (i == 1 && !arg.startsWith("-")) {
+                mapToLoad = arg;
+            } else if (arg.startsWith("-") && !arg.equals("--nosound") && !arg.equals("-ns")) {
+                System.err.println("Unknown option: " + arg);
+                printUsage();
+                return;
+            }
+        }
+
+        // Configure sound engine
+        com.doomviewer.audio.SoundEngine.getInstance().setEnabled(soundEnabled);
+        if (!soundEnabled) {
+            System.out.println("Sound disabled");
+        }
 
         final String finalWadPath = wadFilePath;
         final String finalMapName = mapToLoad;
+        final boolean finalSoundEnabled = soundEnabled;
 
         SwingUtilities.invokeLater(() -> {
-            DoomEngine engine = new DoomEngine(finalWadPath, finalMapName);
+            // Create dependencies
+            GameConfiguration config = new GameConfiguration(finalSoundEnabled);
+            AudioService audioService = new com.doomviewer.audio.SoundEngine();
+            audioService.setEnabled(finalSoundEnabled);
+            InputService inputService = new com.doomviewer.misc.InputHandler();
+
+            // We need to create the engine first, then pass it to BSP
+            // This is a circular dependency we'll need to handle
+            DoomEngine engine = new DoomEngine(finalWadPath, finalMapName, config, audioService, inputService);
+
+            // Set BSP as collision service - BSP will be created in onInit()
+            engine.setCollisionService(null); // Temporarily null, will be set in onInit()
+
             engine.frame = new JFrame("DOOM Level Viewer");
             engine.frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             engine.frame.setResizable(false);

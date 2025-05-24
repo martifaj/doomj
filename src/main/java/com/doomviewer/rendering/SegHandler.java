@@ -4,7 +4,7 @@ import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.game.Player;
 import com.doomviewer.game.DoomEngine;
-import com.doomviewer.wad.WADData;
+import com.doomviewer.wad.WADDataService;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Sector;
 import com.doomviewer.wad.datatypes.Seg;
@@ -22,7 +22,7 @@ public class SegHandler {
     public static final double MIN_SCALE = 0.00390625; // 1/256
 
     private DoomEngine engine;
-    private WADData wadData;
+    private WADDataService wadDataService;
     private Player player;
     private int[] framebuffer; // Will be int[WIDTH * HEIGHT] for ARGB
     private Map<String, int[][]> textures; // From AssetData
@@ -42,11 +42,11 @@ public class SegHandler {
 
     public SegHandler(DoomEngine engine) {
         this.engine = engine;
-        this.wadData = engine.getWadData();
+        this.wadDataService = engine.getWadData();
         this.player = engine.getPlayer();
         this.framebuffer = engine.getFramebuffer(); // Reference to DoomEngine's framebuffer
-        this.textures = this.wadData.assetData.textures;
-        this.skyId = this.wadData.assetData.skyId;
+        this.textures = this.wadDataService.assetData.textures;
+        this.skyId = this.wadDataService.assetData.skyId;
 
         this.xToAngleTable = createXToAngleTable();
         this.upperClip = new int[Constants.WIDTH];
@@ -213,7 +213,7 @@ public class SegHandler {
         int[][] wallTexture = bDrawWall ? textures.get(wallTextureId) : null;
         double middleTexAlt = 0; // Vertical texture offset anchor
         if (bDrawWall) {
-            if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_BOTTOM")) != 0) {
+            if ((line.flags & WADDataService.LINEDEF_FLAGS_MAP.get("DONT_PEG_BOTTOM")) != 0) {
                 // Pegged to floor: V offset is from floor up to texture top
                 // middleTexAlt should be relative to player's eye level for consistency in rendering calculations
                 middleTexAlt = (frontSector.floorHeight + wallTexture[0].length) - playerEyeLevel;
@@ -360,7 +360,7 @@ public class SegHandler {
 
         // Upper texture vertical alignment (DONT_PEG_TOP or default)
         if (bDrawUpperWall) {
-            if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_TOP")) != 0) {
+            if ((line.flags & WADDataService.LINEDEF_FLAGS_MAP.get("DONT_PEG_TOP")) != 0) {
                 upperTexAlt = worldFrontZ1; // Pegged to front sector's ceiling (relative to eye level)
             } else { // Pegged to back sector's ceiling (default for upper textures)
                 // upperTexAlt should be relative to player's eye level
@@ -371,7 +371,7 @@ public class SegHandler {
 
         // Lower texture vertical alignment (DONT_PEG_BOTTOM or default)
         if (bDrawLowerWall) {
-            if ((line.flags & WADData.LINEDEF_FLAGS_MAP.get("DONT_PEG_BOTTOM")) != 0) {
+            if ((line.flags & WADDataService.LINEDEF_FLAGS_MAP.get("DONT_PEG_BOTTOM")) != 0) {
                 // To match Python's (potentially flawed) logic for DONT_PEG_BOTTOM on lower textures:
                 // Python uses world_front_z1, which is (frontSector.ceilHeight - player.height)
                 // This should also be relative to playerEyeLevel if it's a Z coordinate for rendering

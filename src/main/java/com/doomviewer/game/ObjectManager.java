@@ -1,34 +1,40 @@
 package com.doomviewer.game;
 
-import com.doomviewer.game.objects.GameDefinitions;
-import com.doomviewer.game.objects.MapObject;
-import com.doomviewer.game.objects.MobjInfoDef; // Added import
-import com.doomviewer.game.objects.MobjType;
-import com.doomviewer.game.objects.Projectile;
+import com.doomviewer.game.objects.*;
 import com.doomviewer.misc.math.Vector2D;
-import com.doomviewer.wad.WADData;
+import com.doomviewer.services.AudioService;
+import com.doomviewer.services.CollisionService;
+import com.doomviewer.services.GameEngineTmp;
+import com.doomviewer.services.ObjectService;
+import com.doomviewer.wad.WADDataService;
 import com.doomviewer.wad.datatypes.Thing;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class ObjectManager {
-    private DoomEngine engine;
+public class ObjectManager implements ObjectService {
+    private final WADDataService wadDataService;
+    private final CollisionService collisionService;
+    private final GameEngineTmp engineTmp;
     private List<MapObject> mapObjects;
     private List<MapObject> projectiles;
     private GameDefinitions gameDefinitions;
+    private AudioService audioService;
 
-    public ObjectManager(DoomEngine engine, WADData wadData) {
-        this.engine = engine;
+    public ObjectManager(GameEngineTmp gameEngine, CollisionService collisionService,
+                         WADDataService wadDataService, AudioService audioService, Thing playerThing) {
+        this.collisionService = collisionService;
+        this.wadDataService = wadDataService;
         this.gameDefinitions = new GameDefinitions(); // This loads all state/mobj defs
         this.mapObjects = new ArrayList<>();
         this.projectiles = new ArrayList<>();
-        int currentSkill = engine.getCurrentSkillLevel();
+        this.engineTmp = gameEngine;
+        this.audioService = audioService;
+        int currentSkill = gameEngine.getCurrentSkillLevel();
 
-        for (Thing thing : wadData.things) {
+        for (Thing thing : wadDataService.things) {
             MobjInfoDef mobjInfo = gameDefinitions.getMobjInfoByDoomedNum(thing.type);
 
             if (mobjInfo == null) {
@@ -36,11 +42,9 @@ public class ObjectManager {
             }
 
             // 1. Skip if this Thing is the main player (already handled by DoomEngine)
-            Player mainPlayer = engine.getPlayer();
-            if (mainPlayer != null && mainPlayer.info != null &&
-                thing.type == mainPlayer.info.doomednum &&
-                mainPlayer.pos.x == thing.pos.x &&
-                mainPlayer.pos.y == thing.pos.y) {
+            if (thing.type == playerThing.type &&
+                    playerThing.pos.x == thing.pos.x &&
+                    playerThing.pos.y == thing.pos.y) {
                 continue;
             }
 
@@ -70,7 +74,8 @@ public class ObjectManager {
                         break;
                     case 4: // Skill 4 (Hard / Ultra-Violence)
                         // Spawn if "Easy" (bit 0), "Medium" (bit 1), "Hard" (bit 2, value 4), OR no skill flags.
-                        if (((skillBits & 1) != 0) || ((skillBits & 2) != 0) || ((skillBits & 4) != 0) || skillBits == 0) shouldSpawn = true;
+                        if (((skillBits & 1) != 0) || ((skillBits & 2) != 0) || ((skillBits & 4) != 0) || skillBits == 0)
+                            shouldSpawn = true;
                         break;
                     case 5: // Skill 5 (Nightmare)
                         // All non-multiplayer things spawn (fast monsters/respawn handled by other game logic, not just spawn flags)
@@ -80,43 +85,35 @@ public class ObjectManager {
                         // Fallback: try to spawn if skill level is unexpected.
                         // Spawn if "Easy" (bit 0), "Medium" (bit 1), "Hard" (bit 2, value 4), OR no skill flags,
                         // effectively making it like "Hard" as a safe default if skill is out of 1-5 range.
-                        if (((skillBits & 1) != 0) || ((skillBits & 2) != 0) || ((skillBits & 4) != 0) || skillBits == 0) shouldSpawn = true;
+                        if (((skillBits & 1) != 0) || ((skillBits & 2) != 0) || ((skillBits & 4) != 0) || skillBits == 0)
+                            shouldSpawn = true;
                         break;
                 }
             }
 
             if (shouldSpawn) {
                 try {
-                    MapObject mo = new MapObject(thing, gameDefinitions, wadData.assetData, engine);
+                    MapObject mo = new GenericMapObject(thing, gameDefinitions, wadDataService.assetData, collisionService, audioService, gameEngine, this);
                     mapObjects.add(mo);
                 } catch (IllegalArgumentException e) {
                     // Silently skip objects that fail to spawn
                 }
             }
         }
-        // After all MapObjects are created, initialize their height and target
-        if (engine.getBsp() != null) {
-            for (MapObject mo : mapObjects) {
-                mo.initializeHeightAndTarget(engine.getBsp());
-            }
-        }
     }
 
-    public void update() {
+    public void update(Player player) {
         for (MapObject mo : mapObjects) {
-            mo.update(engine); // Call update on each MapObject
+            mo.update(player); // Call update on each MapObject
         }
-        updateProjectiles(); // Update projectiles
+        updateProjectiles(player); // Update projectiles
     }
 
     public List<MapObject> getMapObjects() {
         return mapObjects;
     }
 
-    public List<MapObject> getVisibleSortedMapObjects() {
-        Player player = engine.getPlayer();
-        if (player == null) return Collections.emptyList();
-
+    public List<MapObject> getVisibleSortedMapObjects(Player player) {
         // Combine map objects and projectiles for rendering
         List<MapObject> allObjects = new ArrayList<>(mapObjects);
         allObjects.addAll(projectiles);
@@ -135,29 +132,35 @@ public class ObjectManager {
     public void addProjectile(MapObject projectile) {
         projectiles.add(projectile);
     }
-    
+
     public Projectile createProjectile(MobjType projectileType, Vector2D startPos, double angle, MapObject shooter) {
-        Projectile projectile = new Projectile(projectileType, startPos, angle, shooter, 
-                                             gameDefinitions, engine.getWadData().assetData, engine);
+        Projectile projectile = new Projectile(projectileType, startPos, angle, shooter,
+                gameDefinitions, wadDataService.assetData, collisionService, engineTmp, audioService, this);
         projectiles.add(projectile);
         return projectile;
     }
-    
-    public void updateProjectiles() {
+
+    @Override
+    public void removeObject(MapObject object) {
+        mapObjects.remove(object);
+        projectiles.remove(object);
+    }
+
+    public void updateProjectiles(Player player) {
         // Update all projectiles
         for (int i = projectiles.size() - 1; i >= 0; i--) {
             MapObject projectile = projectiles.get(i);
-            projectile.update(engine);
-            
+            projectile.update(player);
+
             // Remove projectiles that have finished their animation
             // Only remove actual projectiles (missiles, puffs, blood), not map objects that exploded
             if ((projectile.currentStateNum == null || projectile.currentStateNum.name().equals("S_NULL")) &&
-                projectile.isProjectile()) {
+                    projectile.isProjectile()) {
                 projectiles.remove(i);
             }
         }
     }
-    
+
     public List<MapObject> getAllRenderableObjects() {
         // Combine map objects and projectiles for rendering
         List<MapObject> allObjects = new ArrayList<>(mapObjects);
@@ -167,9 +170,5 @@ public class ObjectManager {
 
     public GameDefinitions getGameDefinitions() {
         return gameDefinitions;
-    }
-    
-    public void removeObject(MapObject object) {
-        mapObjects.remove(object);
     }
 }

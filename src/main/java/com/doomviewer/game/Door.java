@@ -2,6 +2,9 @@ package com.doomviewer.game;
 
 import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.math.Vector2D;
+import com.doomviewer.services.CollisionService;
+import com.doomviewer.wad.WADDataService;
+import com.doomviewer.wad.WADReader;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Sector;
 
@@ -29,7 +32,8 @@ public class Door {
     private final Sector sector;
     private final DoorType doorType;
     private final KeyType requiredKey; // null if no key required
-    private DoomEngine engine;
+    private final WADDataService wadDataService;
+    private final CollisionService collisionService;
 
     private DoorState state;
     private double currentCeilHeight;
@@ -44,12 +48,13 @@ public class Door {
     private static final double DOOR_SPEED = 8.0; // Units per frame (increased for faster doors)
     private static final long STAY_OPEN_TIME = 8000; // 8 seconds
 
-    public Door(Linedef linedef, Sector sector, DoorType doorType, KeyType requiredKey, DoomEngine engine) {
+    public Door(Linedef linedef, Sector sector, DoorType doorType, KeyType requiredKey, WADDataService wadDataService, CollisionService collisionService) {
         this.linedef = linedef;
         this.sector = sector;
         this.doorType = doorType;
         this.requiredKey = requiredKey;
-        this.engine = engine;
+        this.wadDataService = wadDataService;
+        this.collisionService = collisionService;
 
         this.state = DoorState.CLOSED;
 
@@ -231,14 +236,14 @@ public class Door {
     }
 
     public boolean isPlayerInDoorSector(Player player) {
-        if (engine == null || player == null) {
+        if (player == null) {
             return false;
         }
 
         // 1. Check for horizontal overlap between player's collision cylinder and this door's linedef.
-        Vector2D doorStart = engine.getWadData().vertexes.get(linedef.startVertexId);
-        Vector2D doorEnd = engine.getWadData().vertexes.get(linedef.endVertexId);
-        boolean playerOverlapDoorLinedefHorizontally = engine.getBsp().circleIntersectsLineSegment(
+        Vector2D doorStart = wadDataService.vertexes.get(linedef.startVertexId);
+        Vector2D doorEnd = wadDataService.vertexes.get(linedef.endVertexId);
+        boolean playerOverlapDoorLinedefHorizontally = collisionService.circleIntersectsLineSegment(
                 player.pos, player.renderRadius, doorStart, doorEnd
         );
 

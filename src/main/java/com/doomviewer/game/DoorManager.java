@@ -1,7 +1,9 @@
 package com.doomviewer.game;
 
 import com.doomviewer.misc.math.Vector2D;
-import com.doomviewer.wad.WADData;
+import com.doomviewer.services.CollisionService;
+import com.doomviewer.services.DoorService;
+import com.doomviewer.wad.WADDataService;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Sector;
 
@@ -11,17 +13,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
-public class DoorManager {
+public class DoorManager implements DoorService {
     private static final Logger LOGGER = Logger.getLogger(DoorManager.class.getName());
     private final List<Door> doors;
     private final Map<Integer, Door> linedefToDoor; // Map linedef index to door
     private Map<Sector, Door> sectorToDoor; // Map sector to its door
-    private final WADData wadData;
-    private DoomEngine engine;
+    private final WADDataService wadDataService;
+    private final CollisionService collisionService;
 
-    public DoorManager(WADData wadData, DoomEngine engine) {
-        this.wadData = wadData;
-        this.engine = engine;
+    public DoorManager(WADDataService wadDataService, CollisionService collisionService) {
+        this.wadDataService = wadDataService;
+        this.collisionService = collisionService;
         this.doors = new ArrayList<>();
         this.linedefToDoor = new HashMap<>();
         this.sectorToDoor = new HashMap<>();
@@ -33,8 +35,8 @@ public class DoorManager {
         Map<Sector, List<Linedef>> sectorToLinedefs = new HashMap<>();
 
         // First pass: group linedefs by their door sector
-        for (int i = 0; i < wadData.linedefs.size(); i++) {
-            Linedef linedef = wadData.linedefs.get(i);
+        for (int i = 0; i < wadDataService.linedefs.size(); i++) {
+            Linedef linedef = wadDataService.linedefs.get(i);
             if (!isDoorType(linedef.lineType)) continue;
 
             Sector doorSector = getDoorSector(linedef);
@@ -123,7 +125,7 @@ public class DoorManager {
         Sector sector = getDoorSector(linedef);
         if (sector != null) {
             LOGGER.info("Creating door with sector - floor: " + sector.floorHeight + ", ceiling: " + sector.ceilHeight + ", floor texture: " + sector.floorTexture + ", ceiling texture: " + sector.ceilTexture);
-            return new Door(linedef, sector, Door.DoorType.NORMAL, null, engine);
+            return new Door(linedef, sector, Door.DoorType.NORMAL, null, wadDataService, collisionService);
         }
         return null;
     }
@@ -131,7 +133,7 @@ public class DoorManager {
     private Door createKeyDoor(Linedef linedef, KeyType keyType) {
         Sector sector = getDoorSector(linedef);
         if (sector != null) {
-            return new Door(linedef, sector, Door.DoorType.KEY_LOCKED, keyType, engine);
+            return new Door(linedef, sector, Door.DoorType.KEY_LOCKED, keyType, wadDataService, collisionService);
         }
         return null;
     }
@@ -142,7 +144,7 @@ public class DoorManager {
 
         if (linedef.sectorTag != 0) {
             // Tagged door - find sector with matching tag
-            for (Sector sector : wadData.sectors) {
+            for (Sector sector : wadDataService.sectors) {
                 if (sector.tag == linedef.sectorTag) {
                     return sector;
                 }
@@ -154,17 +156,17 @@ public class DoorManager {
         Sector frontSector = null;
         Sector backSector = null;
 
-        if (linedef.frontSidedefId != -1 && linedef.frontSidedefId < wadData.sidedefs.size()) {
-            int frontSectorIndex = wadData.sidedefs.get(linedef.frontSidedefId).sectorId;
-            if (frontSectorIndex >= 0 && frontSectorIndex < wadData.sectors.size()) {
-                frontSector = wadData.sectors.get(frontSectorIndex);
+        if (linedef.frontSidedefId != -1 && linedef.frontSidedefId < wadDataService.sidedefs.size()) {
+            int frontSectorIndex = wadDataService.sidedefs.get(linedef.frontSidedefId).sectorId;
+            if (frontSectorIndex >= 0 && frontSectorIndex < wadDataService.sectors.size()) {
+                frontSector = wadDataService.sectors.get(frontSectorIndex);
             }
         }
 
-        if (linedef.backSidedefId != -1 && linedef.backSidedefId < wadData.sidedefs.size()) {
-            int backSectorIndex = wadData.sidedefs.get(linedef.backSidedefId).sectorId;
-            if (backSectorIndex >= 0 && backSectorIndex < wadData.sectors.size()) {
-                backSector = wadData.sectors.get(backSectorIndex);
+        if (linedef.backSidedefId != -1 && linedef.backSidedefId < wadDataService.sidedefs.size()) {
+            int backSectorIndex = wadDataService.sidedefs.get(linedef.backSidedefId).sectorId;
+            if (backSectorIndex >= 0 && backSectorIndex < wadDataService.sectors.size()) {
+                backSector = wadDataService.sectors.get(backSectorIndex);
             }
         }
 
@@ -242,8 +244,8 @@ public class DoorManager {
      * Get the index of a linedef in the WAD data
      */
     private int getLinedefIndex(Linedef linedef) {
-        for (int i = 0; i < wadData.linedefs.size(); i++) {
-            if (wadData.linedefs.get(i) == linedef) {
+        for (int i = 0; i < wadDataService.linedefs.size(); i++) {
+            if (wadDataService.linedefs.get(i) == linedef) {
                 return i;
             }
         }
@@ -252,8 +254,8 @@ public class DoorManager {
 
     private double getDistanceToLinedef(Vector2D point, Linedef linedef) {
         // Get the linedef endpoints
-        Vector2D start = wadData.vertexes.get(linedef.startVertexId);
-        Vector2D end = wadData.vertexes.get(linedef.endVertexId);
+        Vector2D start = wadDataService.vertexes.get(linedef.startVertexId);
+        Vector2D end = wadDataService.vertexes.get(linedef.endVertexId);
 
         // Calculate distance from point to line segment
         double lineLength = Vector2D.distance(start, end);
