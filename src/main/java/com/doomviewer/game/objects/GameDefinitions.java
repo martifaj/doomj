@@ -760,10 +760,10 @@ public class GameDefinitions {
         addState(StateNum.S_TROO_ATK2, SpriteNames.TROO, 7, 8, Actions.A_FACE_TARGET, StateNum.S_TROO_ATK3);
         addState(StateNum.S_TROO_ATK3, SpriteNames.TROO, 6, 6, Actions.A_TROOP_ATTACK, StateNum.S_TROO_RUN1);
 
-        // Missile Attack: 3 frames (8,9,8), tics (8,8,8) - TROOI, TROOJ, TROOI
-        addState(StateNum.S_TROO_MISS1, SpriteNames.TROO, 8, 8, Actions.A_FACE_TARGET, StateNum.S_TROO_MISS2);
-        addState(StateNum.S_TROO_MISS2, SpriteNames.TROO, 9, 8, Actions.A_TROOP_MISSILE, StateNum.S_TROO_MISS3);
-        addState(StateNum.S_TROO_MISS3, SpriteNames.TROO, 8, 8, Actions.NULL, StateNum.S_TROO_RUN1);
+        // Missile Attack: 3 frames (6,7,6), tics (8,8,8) - TROOG, TROOH, TROOG (same as melee for compatibility)
+        addState(StateNum.S_TROO_MISS1, SpriteNames.TROO, 6, 8, Actions.A_FACE_TARGET, StateNum.S_TROO_MISS2);
+        addState(StateNum.S_TROO_MISS2, SpriteNames.TROO, 7, 8, Actions.A_TROOP_MISSILE, StateNum.S_TROO_MISS3);
+        addState(StateNum.S_TROO_MISS3, SpriteNames.TROO, 6, 8, Actions.NULL, StateNum.S_TROO_RUN1);
 
         // Pain: 2 frames (6,6), tics (3,3) - TROOG (use running frame instead of potentially problematic K frame)
         addState(StateNum.S_TROO_PAIN, SpriteNames.TROO, 6, 3, Actions.A_PAIN, StateNum.S_TROO_PAIN2);

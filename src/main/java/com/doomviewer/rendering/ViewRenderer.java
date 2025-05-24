@@ -153,6 +153,15 @@ public class ViewRenderer {
         
         for (MapObject obj : mapObjects) {
             if (obj.currentSpriteLumpName == null || !assetData.sprites.containsKey(obj.currentSpriteLumpName)) {
+                // Debug logging for missing sprites
+                if (obj.currentSpriteLumpName != null && obj.currentSpriteLumpName.startsWith("TROO")) {
+                    System.out.println("DEBUG: Missing Imp sprite: " + obj.currentSpriteLumpName);
+                    System.out.println("Available TROO sprites:");
+                    assetData.sprites.keySet().stream()
+                        .filter(key -> key.startsWith("TROO"))
+                        .sorted()
+                        .forEach(key -> System.out.println("  " + key));
+                }
                 continue;
             }
             BufferedImage spriteImg = assetData.sprites.get(obj.currentSpriteLumpName);
