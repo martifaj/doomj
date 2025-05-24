@@ -2,6 +2,7 @@ package com.doomviewer.game.objects;
 
 import com.doomviewer.audio.SoundEngine;
 import com.doomviewer.game.DoomEngine;
+import com.doomviewer.game.Player;
 import com.doomviewer.misc.math.Vector2D;
 
 import java.util.Random;
@@ -169,10 +170,17 @@ public class Actions {
 
     public static void A_Fall(MapObject self, DoomEngine engine) {
         // Object becomes non-solid, non-shootable, but remains visible as a corpse.
-        self.flags &= ~MobjFlags.MF_SOLID;
-        self.flags &= ~MobjFlags.MF_SHOOTABLE;
-        self.flags |= MobjFlags.MF_CORPSE; // Mark as corpse so it stays visible
-        // System.out.println(self.info.name + " falls!");
+        self.flags |= MobjFlags.MF_SOLID;
+        self.flags |= MobjFlags.MF_SHOOTABLE;
+        self.flags |= MobjFlags.MF_CORPSE; // Mark as corpse
+        self.flags |= MobjFlags.MF_FLOAT; // Corpses don't float
+        self.flags |= MobjFlags.MF_NOGRAVITY; // Corpses are affected by gravity
+
+        // Make sure the object stays at floor level
+        if (engine.getBsp() != null) {
+            self.floorHeight = engine.getBsp().getSubSectorHeightAt(self.pos.x, self.pos.y);
+            self.z = self.floorHeight;
+        }
     }
 
     public static void A_XScream(MapObject self, DoomEngine engine) {
@@ -196,6 +204,7 @@ public class Actions {
     public static final MobjAction A_PAIN_ACTION = Actions::A_Pain;
     public static final MobjAction A_FALL_ACTION = Actions::A_Fall;
     public static final MobjAction A_XSCREAM_ACTION = Actions::A_XScream;
+    public static final MobjAction A_EXPLODE_ACTION = Actions::A_Explode;
 
     // Placeholder for other actions
     public static final MobjAction NULL_ACTION = (s, e) -> {};
@@ -208,7 +217,7 @@ public class Actions {
         // Launch cacodemon fireball
         spawnMissile(self, engine, MobjType.MT_HEADSHOT);
     }
-    
+
     public static void A_BruisAttack(MapObject self, DoomEngine engine) {
         Actions.A_FaceTarget(self, engine);
         // Play baron fireball sound
@@ -235,6 +244,45 @@ public class Actions {
         Actions.A_FaceTarget(self, engine);
         // Launch mancubus fireball (right)
         spawnMissileWithAngleOffset(self, engine, MobjType.MT_FATSHOT, 15.0);
+    }
+
+    public static void A_Explode(MapObject self, DoomEngine engine) {
+        // Play explosion sound
+        SoundEngine.getInstance().playSound("DSBAREXP");
+
+        // Deal blast damage in radius
+        double blastRadius = 128.0;
+        int damage = 128;
+
+        // Check all nearby objects
+        for (MapObject obj : engine.getObjectManager().getMapObjects()) {
+            if (obj == self) continue;
+
+            double distance = Vector2D.distance(self.pos, obj.pos);
+            if (distance < blastRadius) {
+                // Calculate damage based on distance
+                double damageRatio = 1.0 - (distance / blastRadius);
+                int blastDamage = (int)(damage * damageRatio);
+
+                if (blastDamage > 0 && (obj.flags & MobjFlags.MF_SHOOTABLE) != 0) {
+                    obj.health -= blastDamage;
+                    if (obj.health <= 0 && obj.info.deathState != StateNum.S_NULL) {
+                        obj.setState(obj.info.deathState);
+                    }
+                }
+            }
+        }
+
+        // Check player too
+        Player player = engine.getPlayer();
+        if (player != null) {
+            double distanceToPlayer = Vector2D.distance(self.pos, player.pos);
+            if (distanceToPlayer < blastRadius) {
+                double damageRatio = 1.0 - (distanceToPlayer / blastRadius);
+                int blastDamage = (int)(damage * damageRatio);
+                player.takeDamage(blastDamage);
+            }
+        }
     }
 
     // Combat helper methods
@@ -308,20 +356,15 @@ public class Actions {
         } else {
         }
     }
-    
+
     private static void dealDamage(MapObject target, int damage, DoomEngine engine) {
-        target.health -= damage;
-        
-        if (target.health <= 0) {
-            // Target killed
-            target.setState(target.info.deathState);
-        } else if (Math.random() < (target.info.painChance / 255.0)) {
-            // Pain chance
-            target.setState(target.info.painState);
+        if (target == null || (target.flags & MobjFlags.MF_SHOOTABLE) == 0) {
+            return;
         }
+
+        target.takeDamage(damage, null);
     }
-    
-    
+
     private static double normalizeAngle(double angle) {
         while (angle < -180) angle += 360;
         while (angle > 180) angle -= 360;

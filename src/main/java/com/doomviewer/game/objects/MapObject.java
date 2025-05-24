@@ -1,14 +1,18 @@
 package com.doomviewer.game.objects;
 
 import com.doomviewer.game.BSP;
+import com.doomviewer.game.PlayerHUD;
 import com.doomviewer.misc.math.Vector2D;
 import com.doomviewer.game.DoomEngine;
 import com.doomviewer.wad.assets.AssetData;
 import com.doomviewer.wad.datatypes.Thing;
 
 import java.awt.image.BufferedImage;
+import java.util.logging.Logger;
 
 public class MapObject {
+    private static final Logger LOGGER = Logger.getLogger(MapObject.class.getName());
+
     public Vector2D pos;
     public Vector2D velocity; // For projectiles and moving objects
     public double angle; // degrees, 0 = East, 90 = North (Doom convention)
@@ -116,58 +120,63 @@ public class MapObject {
     }
 
     public void update(DoomEngine engine) {
-        // Update projectile movement
-        if (isProjectile()) {
+        // Update projectile movement (only if not a corpse AND is a projectile)
+        if (isProjectile() && (flags & MobjFlags.MF_CORPSE) == 0) {
             updateProjectileMovement(engine);
         }
-        
+
         // Update Z position based on current sector's floor height
-        // This should ideally be done if the object moves to a new sector or if floor moves.
-        // For simplicity, let's assume it's updated if it's not MF_NOGRAVITY
+        // This is always true, even for corpses (A_Fall handles their floor snapping)
         if ((this.flags & MobjFlags.MF_NOGRAVITY) == 0 && engine.getBsp() != null) {
             this.floorHeight = engine.getBsp().getSubSectorHeightAt(this.pos.x, this.pos.y);
-            this.z = this.floorHeight; // Stick to floor if gravity applies
+            this.z = this.floorHeight;
         }
 
+        // Handle state transitions (applies to all living objects AND corpses still animating)
         if (ticsRemainingInState > 0 && ticsRemainingInState != Integer.MAX_VALUE) {
             ticsRemainingInState--;
         }
 
-        if (ticsRemainingInState <= 0) {
-            // Execute action of the *current* state before transitioning (Doom behavior often puts action on state entry/during)
-            // But info.c suggests action applies *to* the state, and then nextstate is chosen.
-            // For simplicity: action of current state (if any) might have already run or runs now.
-            // Then transition.
+        if (ticsRemainingInState <= 0 && ticsRemainingInState != Integer.MAX_VALUE) {
             if (currentStateDef.action != null) {
                 currentStateDef.action.execute(this, engine);
             }
             setState(currentStateDef.nextState);
-        } else {
-            // If state has an action that runs every tic (less common for monsters, more for projectiles/player anim)
-            // For now, assume action is primarily on state entry/change.
-            // Some actions like A_Chase should run every tic the monster is in a CHASE sub-state.
-            // This is handled by the action itself if it's called every frame the state is active,
-            // or if the state transitions to itself.
-            if (currentStateDef.action != null) { // Could call A_Chase here if in run state
-                // For example, if in a RUN state, call A_Chase
-                String actionName = getActionName(currentStateDef.action);
-                if ("A_Chase".equals(actionName) || "A_Look".equals(actionName)) { // Crude check
-                    currentStateDef.action.execute(this, engine);
-                }
+        } else if (currentStateDef.action != null) {
+            String actionName = getActionName(currentStateDef.action); // You might want to remove this getActionName() for performance
+            // Only execute continuous actions for living objects, or specific corpse-related actions
+            if ((health > 0 && ("A_Chase".equals(actionName) || "A_Look".equals(actionName)))
+                    || (actionName.equals("A_Fall") && (flags & MobjFlags.MF_CORPSE) != 0)) // Example: let A_Fall re-run if needed, though its effect is mostly one-shot
+            {
+                currentStateDef.action.execute(this, engine);
             }
         }
 
-        // Update floor/ceiling height (simplified for now)
-        // In a full game, this would involve checking the sector the object is in.
-        // For now, we'll use a placeholder or assume it's updated externally.
-        // Update z based on gravity if MF_NOGRAVITY is not set.
-        // if ((this.flags & MobjFlags.MF_NOGRAVITY) == 0) { // Logic moved up
-            // Simplified: try to stay on floor. A full physics step is needed.
-            // this.z = current_sector_floor_height
-        // }
-        
-        // Update AI for enemies
-        updateAI(engine);
+        // Update AI for living enemies only (this part should skip for corpses)
+        if (health > 0 && isEnemy()) { // isEnemy() check is important
+            updateAI(engine);
+        }
+    }
+
+    public void takeDamage(int damage, MapObject inflictor) {
+        // Don't damage already dead objects
+        if (health <= 0 || (flags & MobjFlags.MF_CORPSE) != 0) {
+            return;
+        }
+
+        health -= damage;
+
+        if (health <= 0) {
+            // Object killed
+            if (info.deathState != StateNum.S_NULL) {
+                setState(info.deathState);
+            }
+        } else if (Math.random() < (info.painChance / 255.0)) {
+            // Pain chance
+            if (info.painState != StateNum.S_NULL) {
+                setState(info.painState);
+            }
+        }
     }
 
     private String getActionName(MobjAction action) {
@@ -189,6 +198,7 @@ public class MapObject {
 
 
     public void setState(StateNum newStateNum) {
+        LOGGER.info(info.name + " changing state from " + currentStateNum + " to " + newStateNum);
         this.currentStateNum = newStateNum;
         this.currentStateDef = gameDefinitions.getState(newStateNum);
         if (this.currentStateDef == null) {

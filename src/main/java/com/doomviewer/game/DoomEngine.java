@@ -272,7 +272,7 @@ public class DoomEngine extends JPanel implements Runnable {
         Logger.getLogger("com.doomviewer.game.BSP").setLevel(Level.INFO);
         
         String wadFilePath = "DOOM1.WAD";
-        String mapToLoad = "E1M1";
+        String mapToLoad = "E1M5";
 
         if (args.length > 0) wadFilePath = args[0];
         if (args.length > 1) mapToLoad = args[1];

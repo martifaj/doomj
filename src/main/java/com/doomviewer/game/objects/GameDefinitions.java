@@ -1120,23 +1120,24 @@ public class GameDefinitions {
     private void populateDecorations() {
         // Add state definitions for decorations
         addState(StateNum.S_BAR1, SpriteNames.BAR1, 0, -1, Actions.NULL_ACTION, StateNum.S_BAR1);
+        addState(StateNum.S_ELEC, SpriteNames.ELEC, 0, -1, Actions.NULL_ACTION, StateNum.S_ELEC);
         addState(StateNum.S_BEXP, SpriteNames.BEXP, 0, 5, Actions::A_Scream, StateNum.S_BEXP2);
         addState(StateNum.S_BEXP2, SpriteNames.BEXP, 1, 5, Actions.NULL_ACTION, StateNum.S_BEXP3);
-        addState(StateNum.S_BEXP3, SpriteNames.BEXP, 2, 5, Actions.NULL_ACTION, StateNum.S_BEXP4);
+        addState(StateNum.S_BEXP3, SpriteNames.BEXP, 2, 5, Actions::A_Explode, StateNum.S_BEXP4);
         addState(StateNum.S_BEXP4, SpriteNames.BEXP, 3, 10, Actions.NULL_ACTION, StateNum.S_BEXP5);
-        addState(StateNum.S_BEXP5, SpriteNames.BEXP, 4, -1, Actions.NULL_ACTION, StateNum.S_BEXP5);
-        addState(StateNum.S_ELEC, SpriteNames.ELEC, 0, -1, Actions.NULL_ACTION, StateNum.S_ELEC);
-        
-        // Explosive barrel
+        addState(StateNum.S_BEXP5, SpriteNames.BEXP, 4, -1, Actions::A_Fall, StateNum.S_BEXP5);
+
+        // Exploding barrel
         MobjInfoDef barrelInfo = new MobjInfoDef(
-                "MT_BARREL_EXPLOSIVE", 2035, StateNum.S_BAR1, 20, StateNum.S_NULL,
+                "MT_BARREL", 2035, StateNum.S_BAR1, 20, StateNum.S_NULL,
                 SoundKey.SFX_NONE, 8, SoundKey.SFX_NONE, StateNum.S_NULL, 0,
                 SoundKey.SFX_NONE, StateNum.S_NULL, StateNum.S_NULL, StateNum.S_BEXP, StateNum.S_NULL,
                 SoundKey.SFX_BAREXP, 0, 10.0, 42.0, 100, 0,
                 SoundKey.SFX_NONE, MobjFlags.MF_SOLID | MobjFlags.MF_SHOOTABLE | MobjFlags.MF_NOBLOOD, StateNum.S_NULL
         );
-        mobjInfos.put(MobjType.MT_BARREL_EXPLOSIVE, barrelInfo);
-        doomedNumToMobjType.put(2035, MobjType.MT_BARREL_EXPLOSIVE);
+        mobjInfos.put(MobjType.MT_BARREL, barrelInfo);
+        doomedNumToMobjType.put(2035, MobjType.MT_BARREL);
+
         
         // Dead marine (decoration)
         MobjInfoDef deadMarineInfo = new MobjInfoDef(

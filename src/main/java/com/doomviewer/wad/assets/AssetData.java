@@ -181,7 +181,10 @@ public class AssetData {
             if (lumpInfo.lumpSize == 0) continue;
 
             String lumpNameUpper = lumpInfo.lumpName.toUpperCase();
-            
+
+            if (lumpNameUpper.startsWith("BEXP")) {
+                System.out.println("Loading explosion sprite: " + lumpNameUpper + " (size: " + lumpInfo.lumpSize + ")");
+            }
             
             Patch patch = new Patch(this, lumpNameUpper, true); // Use uppercase consistently
             this.spritePatches.put(lumpNameUpper, patch);
@@ -190,8 +193,8 @@ public class AssetData {
         }
         
         LOGGER.info("Total sprites loaded: " + spritesLoaded);
-        
-        
+
+
         this.sprites = loadedSpriteImages; // Assign to the class member
         return loadedSpriteImages; // Though constructor won't use return value
     }
