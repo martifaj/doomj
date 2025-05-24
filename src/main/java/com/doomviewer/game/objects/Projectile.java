@@ -18,6 +18,11 @@ public class Projectile extends MapObject {
     private double blastRadius;
     private int lifeTime; // in tics
     private int currentLifeTics;
+    private double startZ; // Starting Z coordinate
+    private double targetZ; // Target Z coordinate
+    private Vector2D startPos; // Starting position
+    private Vector2D targetPos; // Target position
+    private double totalDistance; // Total distance to travel
 
     public Projectile(MobjType projectileType, Vector2D startPos, double angle, MapObject shooter,
                       GameDefinitions gameDefinitions, AssetData assetData, CollisionService collisionService, GameEngineTmp engineTmp, AudioService audioService,
@@ -132,6 +137,35 @@ public class Projectile extends MapObject {
                 startPos.x + Math.cos(angleRad) * offsetDistance,
                 startPos.y + Math.sin(angleRad) * offsetDistance
         );
+        
+        // Calculate 3D trajectory from shooter to target
+        if (shooter != null && shooter.getTarget() != null) {
+            // Store starting position and height
+            this.startPos = new Vector2D(pos.x, pos.y);
+            this.startZ = shooter.z + (shooter.renderHeight * 0.6); // Firing point at 60% of shooter height
+            
+            // Calculate target position and height
+            MapObject target = shooter.getTarget();
+            this.targetPos = new Vector2D(target.pos.x, target.pos.y);
+            this.targetZ = target.z + (target.renderHeight * 0.5); // Aim for middle of target
+            
+            // Calculate total distance for trajectory interpolation
+            this.totalDistance = Math.sqrt(
+                Math.pow(targetPos.x - startPos.x, 2) + 
+                Math.pow(targetPos.y - startPos.y, 2)
+            );
+            
+            // Set initial Z coordinate to starting height
+            this.z = this.startZ;
+        } else {
+            // Fallback if no shooter or target
+            this.startPos = new Vector2D(pos.x, pos.y);
+            this.startZ = this.floorHeight + 48.0;
+            this.targetPos = this.startPos;
+            this.targetZ = this.startZ;
+            this.totalDistance = 0;
+            this.z = this.startZ;
+        }
     }
 
     private static Thing createProjectileThing(MobjType type, Vector2D pos, double angle, GameDefinitions gameDefinitions) {
@@ -335,9 +369,28 @@ public class Projectile extends MapObject {
         // No collision, update position
         pos = newPos;
 
-        // Update Z position for flying projectiles
-            this.floorHeight = collisionService.getSubSectorHeightAt(pos.x, pos.y);
-            this.z = this.floorHeight + 32.0; // Fly at head height
+        // Update Z position for flying projectiles using trajectory interpolation
+        this.floorHeight = collisionService.getSubSectorHeightAt(pos.x, pos.y);
+        
+        if (totalDistance > 0) {
+            // Calculate how far we've traveled from start position
+            double distanceTraveled = Math.sqrt(
+                Math.pow(pos.x - startPos.x, 2) + 
+                Math.pow(pos.y - startPos.y, 2)
+            );
+            
+            // Calculate interpolation factor (0.0 at start, 1.0 at target)
+            double t = Math.min(distanceTraveled / totalDistance, 1.0);
+            
+            // Interpolate height from start to target
+            double trajectoryZ = startZ + (targetZ - startZ) * t;
+            
+            // Ensure projectile doesn't go below floor level
+            this.z = Math.max(trajectoryZ, this.floorHeight + 8.0);
+        } else {
+            // Fallback for projectiles without trajectory data
+            this.z = this.floorHeight + 48.0;
+        }
     }
 
     private void hitTarget(MapObject target) {
