@@ -132,6 +132,16 @@ public class Projectile extends MapObject {
                 startPos.x + Math.cos(angleRad) * offsetDistance,
                 startPos.y + Math.sin(angleRad) * offsetDistance
         );
+        
+        // Set Z coordinate to start at appropriate height relative to shooter
+        if (shooter != null) {
+            // Start projectile at roughly the middle height of the shooter
+            // This makes fireballs appear to come from the enemy's torso/head area rather than ground level
+            this.z = shooter.z + (shooter.renderHeight * 0.6); // 60% up the shooter's height
+        } else {
+            // Fallback if no shooter (shouldn't happen for enemy projectiles)
+            this.z = this.floorHeight + 32; // Default height above ground
+        }
     }
 
     private static Thing createProjectileThing(MobjType type, Vector2D pos, double angle, GameDefinitions gameDefinitions) {

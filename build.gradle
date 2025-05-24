@@ -27,8 +27,8 @@ tasks.withType(Test).configureEach {
 java {
     // Use Java toolchains to ensure the correct JDK is used.
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(17)
     }
-    sourceCompatibility = JavaVersion.VERSION_21 // Adjust Java version as needed
-    targetCompatibility = JavaVersion.VERSION_21 // Adjust Java version as needed
+    sourceCompatibility = JavaVersion.VERSION_17 // Adjust Java version as needed
+    targetCompatibility = JavaVersion.VERSION_17 // Adjust Java version as needed
 }
