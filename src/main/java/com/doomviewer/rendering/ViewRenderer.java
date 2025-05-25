@@ -154,13 +154,15 @@ public class ViewRenderer {
         for (MapObject obj : mapObjects) {
             if (obj.currentSpriteLumpName == null || !assetData.sprites.containsKey(obj.currentSpriteLumpName)) {
                 // Debug logging for missing sprites
-                if (obj.currentSpriteLumpName != null && obj.currentSpriteLumpName.startsWith("TROO")) {
-                    System.out.println("DEBUG: Missing Imp sprite: " + obj.currentSpriteLumpName);
-                    System.out.println("Available TROO sprites:");
+                if (obj.currentSpriteLumpName != null) {
+                    System.out.println("DEBUG: Missing sprite: " + obj.currentSpriteLumpName + " for object type " + obj.type);
+                    String spritePrefix = obj.currentSpriteLumpName.substring(0, Math.min(4, obj.currentSpriteLumpName.length()));
+                    System.out.println("Available " + spritePrefix + " sprites:");
                     assetData.sprites.keySet().stream()
-                        .filter(key -> key.startsWith("TROO"))
+                        .filter(key -> key.startsWith(spritePrefix))
                         .sorted()
                         .forEach(key -> System.out.println("  " + key));
+                    System.out.println("---");
                 }
                 continue;
             }

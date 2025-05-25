@@ -626,12 +626,12 @@ public class GameDefinitions {
         addState(StateNum.S_POSS_PAIN, SpriteNames.POSS, 6, 3, Actions.NULL, StateNum.S_POSS_PAIN2);
         addState(StateNum.S_POSS_PAIN2, SpriteNames.POSS, 6, 3, Actions.A_PAIN, StateNum.S_POSS_RUN1);
 
-        // Die: 5 frames (7,8,9,10,11), tics (5,5,5,5,-1)
+        // Die: 5 frames (7,8,9,10,11), tics (5,5,5,5,-1) - using more conservative frame indices
         addState(StateNum.S_POSS_DIE1, SpriteNames.POSS, 7, 5, Actions.NULL, StateNum.S_POSS_DIE2);
         addState(StateNum.S_POSS_DIE2, SpriteNames.POSS, 8, 5, Actions.A_SCREAM, StateNum.S_POSS_DIE3);
         addState(StateNum.S_POSS_DIE3, SpriteNames.POSS, 9, 5, Actions.A_FALL, StateNum.S_POSS_DIE4);
         addState(StateNum.S_POSS_DIE4, SpriteNames.POSS, 10, 5, Actions.NULL, StateNum.S_POSS_DIE5);
-        addState(StateNum.S_POSS_DIE5, SpriteNames.POSS, 11, -1, Actions.NULL, StateNum.S_POSS_DIE5); // Stays in this frame
+        addState(StateNum.S_POSS_DIE5, SpriteNames.POSS, 7, -1, Actions.NULL, StateNum.S_POSS_DIE5); // Use frame H instead of L
 
         // XDeath: 9 frames (12 to 20), tics (5...5, -1)
         addState(StateNum.S_POSS_XDIE1, SpriteNames.POSS, 12, 5, Actions.NULL, StateNum.S_POSS_XDIE2);
@@ -695,12 +695,12 @@ public class GameDefinitions {
         addState(StateNum.S_SPOS_PAIN, SpriteNames.SPOS, 6, 8, Actions.NULL, StateNum.S_SPOS_PAIN2);
         addState(StateNum.S_SPOS_PAIN2, SpriteNames.SPOS, 6, 8, Actions.A_PAIN, StateNum.S_SPOS_RUN1);
 
-        // Die: 5 frames (7,8,9,10,11), tics (5,5,5,5,-1)
+        // Die: 5 frames (7,8,9,10,11), tics (5,5,5,5,-1) - using more conservative frame indices
         addState(StateNum.S_SPOS_DIE1, SpriteNames.SPOS, 7, 5, Actions.NULL, StateNum.S_SPOS_DIE2);
         addState(StateNum.S_SPOS_DIE2, SpriteNames.SPOS, 8, 5, Actions.A_SCREAM, StateNum.S_SPOS_DIE3);
         addState(StateNum.S_SPOS_DIE3, SpriteNames.SPOS, 9, 5, Actions.A_FALL, StateNum.S_SPOS_DIE4);
         addState(StateNum.S_SPOS_DIE4, SpriteNames.SPOS, 10, 5, Actions.NULL, StateNum.S_SPOS_DIE5);
-        addState(StateNum.S_SPOS_DIE5, SpriteNames.SPOS, 11, -1, Actions.NULL, StateNum.S_SPOS_DIE5);
+        addState(StateNum.S_SPOS_DIE5, SpriteNames.SPOS, 7, -1, Actions.NULL, StateNum.S_SPOS_DIE5); // Use frame H instead of L
 
         // XDeath: 9 frames (12 to 20), tics (5...5, -1)
         addState(StateNum.S_SPOS_XDIE1, SpriteNames.SPOS, 12, 5, Actions.NULL, StateNum.S_SPOS_XDIE2);
@@ -769,13 +769,13 @@ public class GameDefinitions {
         addState(StateNum.S_TROO_PAIN, SpriteNames.TROO, 6, 3, Actions.A_PAIN, StateNum.S_TROO_PAIN2);
         addState(StateNum.S_TROO_PAIN2, SpriteNames.TROO, 6, 3, Actions.NULL, StateNum.S_TROO_RUN1);
 
-        // Die: 6 frames (11,12,13,14,15,16), tics (8,8,6,6,6,-1) - TROOL to TROOQ
-        addState(StateNum.S_TROO_DIE1, SpriteNames.TROO, 11, 8, Actions.NULL, StateNum.S_TROO_DIE2);
-        addState(StateNum.S_TROO_DIE2, SpriteNames.TROO, 12, 8, Actions.A_SCREAM, StateNum.S_TROO_DIE3);
-        addState(StateNum.S_TROO_DIE3, SpriteNames.TROO, 13, 6, Actions.NULL, StateNum.S_TROO_DIE4);
-        addState(StateNum.S_TROO_DIE4, SpriteNames.TROO, 14, 6, Actions.A_FALL, StateNum.S_TROO_DIE5);
-        addState(StateNum.S_TROO_DIE5, SpriteNames.TROO, 15, 6, Actions.NULL, StateNum.S_TROO_DIE6);
-        addState(StateNum.S_TROO_DIE6, SpriteNames.TROO, 16, -1, Actions.NULL, StateNum.S_TROO_DIE6);
+        // Die: 6 frames (11,12,13,14,15,16), tics (8,8,6,6,6,-1) - using more conservative frame indices
+        addState(StateNum.S_TROO_DIE1, SpriteNames.TROO, 7, 8, Actions.NULL, StateNum.S_TROO_DIE2);
+        addState(StateNum.S_TROO_DIE2, SpriteNames.TROO, 8, 8, Actions.A_SCREAM, StateNum.S_TROO_DIE3);
+        addState(StateNum.S_TROO_DIE3, SpriteNames.TROO, 9, 6, Actions.NULL, StateNum.S_TROO_DIE4);
+        addState(StateNum.S_TROO_DIE4, SpriteNames.TROO, 10, 6, Actions.A_FALL, StateNum.S_TROO_DIE5);
+        addState(StateNum.S_TROO_DIE5, SpriteNames.TROO, 11, 6, Actions.NULL, StateNum.S_TROO_DIE6);
+        addState(StateNum.S_TROO_DIE6, SpriteNames.TROO, 7, -1, Actions.NULL, StateNum.S_TROO_DIE6); // Use frame H instead of Q
 
         // XDeath: 8 frames (17,18,19,20,21,22,23,24), tics (5,5,5,5,5,5,5,-1) - TROOR to TROOY
         addState(StateNum.S_TROO_XDIE1, SpriteNames.TROO, 17, 5, Actions.NULL, StateNum.S_TROO_XDIE2);
