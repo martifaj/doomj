@@ -37,7 +37,7 @@ public class ViewRenderer {
         this.textures = this.assetData.textures;
         this.player = engine.getPlayer();
         // this.framebuffer = engine.getFramebuffer();
-        this.xToAngleTable = engine.getSegHandler().xToAngleTable; // Get from SegHandler after it's created
+        this.xToAngleTable = engine.getSegHandler().getXToAngleTable(); // Get from GeometricSegHandler after it's created
 
         this.skyId = this.assetData.skyId; // This is "F_SKY1"
         this.skyTexture = this.assetData.skyTex; // This is the actual texture for "SKY1"

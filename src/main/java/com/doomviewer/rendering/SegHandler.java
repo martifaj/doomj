@@ -1,7 +1,7 @@
 package com.doomviewer.rendering;
 
 import com.doomviewer.misc.Constants;
-import com.doomviewer.misc.math.Vector2D;
+import com.doomviewer.geometry.*;
 import com.doomviewer.game.Player;
 import com.doomviewer.game.DoomEngine;
 import com.doomviewer.wad.WADDataService;
@@ -14,7 +14,7 @@ import java.util.*;
 import java.util.List;
 import java.util.ArrayList;
 
-import static com.doomviewer.game.BSP.normalizeAngle;
+import static com.doomviewer.game.GeometricBSP.normalizeAngle;
 
 
 public class SegHandler {
@@ -182,7 +182,7 @@ public class SegHandler {
         double rwNormalAngle = normalizeAngle(seg.angle + 90); // Angle of the normal pointing outwards from the wall
         double offsetAngle = normalizeAngle(rwNormalAngle - this.rwAngle1); // Angle between wall normal and vector to seg start
 
-        double hypotenuse = Vector2D.distance(player.pos, seg.startVertex);
+        double hypotenuse = com.doomviewer.misc.math.Vector2D.distance(player.pos, seg.startVertex);
         double rwDistance = hypotenuse * Math.cos(Math.toRadians(offsetAngle)); // Perpendicular distance to wall
         if (rwDistance < MIN_SCALE) rwDistance = MIN_SCALE; // Avoid division by zero or extreme scales
 
@@ -343,7 +343,7 @@ public class SegHandler {
 
         double rwNormalAngle = normalizeAngle(seg.angle + 90);
         double offsetAngle = normalizeAngle(rwNormalAngle - this.rwAngle1);
-        double hypotenuse = Vector2D.distance(player.pos, seg.startVertex);
+        double hypotenuse = com.doomviewer.misc.math.Vector2D.distance(player.pos, seg.startVertex);
         double rwDistance = hypotenuse * Math.cos(Math.toRadians(offsetAngle));
         if (rwDistance < MIN_SCALE) rwDistance = MIN_SCALE;
 
