@@ -181,11 +181,11 @@ public enum Actions implements MobjAction {
         @Override
         public void execute(MapObject self, ObjectManager objectManager, Player player, AudioService audioService, GameEngineTmp engineTmp, CollisionService collisionService) {
             // Object becomes non-solid, non-shootable, but remains visible as a corpse.
-            self.flags |= MobjFlags.MF_SOLID;
-            self.flags |= MobjFlags.MF_SHOOTABLE;
-            self.flags |= MobjFlags.MF_CORPSE; // Mark as corpse
-            self.flags |= MobjFlags.MF_FLOAT; // Corpses don't float
-            self.flags |= MobjFlags.MF_NOGRAVITY; // Corpses are affected by gravity
+            self.flags &= ~MobjFlags.MF_SOLID;      // Remove solid flag - corpses don't block movement
+            self.flags &= ~MobjFlags.MF_SHOOTABLE;  // Remove shootable flag - corpses can't be shot
+            self.flags |= MobjFlags.MF_CORPSE;      // Mark as corpse
+            self.flags &= ~MobjFlags.MF_FLOAT;      // Remove float flag - corpses don't float
+            self.flags &= ~MobjFlags.MF_NOGRAVITY;  // Remove nogravity flag - corpses are affected by gravity
 
             // Make sure the object stays at floor level
             self.floorHeight = collisionService.getSubSectorHeightAt(self.pos.x, self.pos.y);

@@ -1124,7 +1124,7 @@ public class GameDefinitions {
         addState(StateNum.S_BEXP2, SpriteNames.BEXP, 1, 5, Actions.NULL, StateNum.S_BEXP3);
         addState(StateNum.S_BEXP3, SpriteNames.BEXP, 2, 5, Actions.A_EXPLODE, StateNum.S_BEXP4);
         addState(StateNum.S_BEXP4, SpriteNames.BEXP, 3, 10, Actions.NULL, StateNum.S_BEXP5);
-        addState(StateNum.S_BEXP5, SpriteNames.BEXP, 4, -1, Actions.A_FALL, StateNum.S_BEXP5);
+        addState(StateNum.S_BEXP5, SpriteNames.BEXP, 4, 10, Actions.A_FALL, StateNum.S_NULL);
 
         // Exploding barrel
         MobjInfoDef barrelInfo = new MobjInfoDef(

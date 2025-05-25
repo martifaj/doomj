@@ -103,8 +103,19 @@ public class ObjectManager implements ObjectService {
     }
 
     public void update(Player player) {
-        for (MapObject mo : mapObjects) {
+        // Update all map objects
+        for (int i = mapObjects.size() - 1; i >= 0; i--) {
+            MapObject mo = mapObjects.get(i);
             mo.update(player); // Call update on each MapObject
+            
+            // Remove objects that have finished their death animation and should disappear
+            if (mo.currentStateNum == null || mo.currentStateNum.name().equals("S_NULL")) {
+                // Only remove certain types of objects that should disappear after dying/exploding
+                // Barrels should disappear after exploding, but enemy corpses should remain visible
+                if (mo.type == MobjType.MT_BARREL) {
+                    mapObjects.remove(i);
+                }
+            }
         }
         updateProjectiles(player); // Update projectiles
     }
