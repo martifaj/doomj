@@ -15,8 +15,9 @@ import java.util.logging.Logger;
 /**
  * Enhanced BSP implementation using the new geometry classes.
  * Demonstrates cleaner and more maintainable geometric calculations.
+ * This is a demonstration class showing how to integrate the geometry package.
  */
-public class GeometricBSP implements CollisionService {
+public class GeometricBSP {
     private static final Logger LOGGER = Logger.getLogger(GeometricBSP.class.getName());
     public static final int SUB_SECTOR_IDENTIFIER = 0x8000;
 
@@ -165,7 +166,6 @@ public class GeometricBSP implements CollisionService {
     /**
      * Enhanced collision detection using geometry classes.
      */
-    @Override
     public boolean checkCollision(double newX, double newY, double radius) {
         Point2D newPos = new Point2D(newX, newY);
         
