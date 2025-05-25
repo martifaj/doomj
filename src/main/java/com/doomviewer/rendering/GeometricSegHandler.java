@@ -77,6 +77,20 @@ public class GeometricSegHandler {
     public List<DrawSeg> getDrawSegs() {
         return drawSegs;
     }
+    
+    // Compatibility method for ViewRenderer which expects double[]
+    public double[] getXToAngleTable() {
+        double[] doubleArray = new double[xToAngleTable.length];
+        for (int i = 0; i < xToAngleTable.length; i++) {
+            doubleArray[i] = xToAngleTable[i].degrees();
+        }
+        return doubleArray;
+    }
+    
+    // Direct access to the Angle array for geometry-aware code
+    public Angle[] getXToAngleTableAsAngles() {
+        return xToAngleTable;
+    }
 
     private void initFloorCeilClipHeight() {
         Arrays.fill(upperClip, -1);

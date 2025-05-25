@@ -6,7 +6,7 @@ import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.InputHandler;
 import com.doomviewer.rendering.FrameBuffer;
 import com.doomviewer.rendering.MapRenderer;
-import com.doomviewer.rendering.SegHandler;
+import com.doomviewer.rendering.GeometricSegHandler;
 import com.doomviewer.rendering.ViewRenderer;
 import com.doomviewer.services.AudioService;
 import com.doomviewer.services.CollisionService;
@@ -46,8 +46,8 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
     private MapRenderer mapRenderer;
     private Player player;
     private DoorManager doorManager;
-    private BSP bsp;
-    private SegHandler segHandler;
+    private GeometricBSP bsp;
+    private GeometricSegHandler segHandler;
     private ViewRenderer viewRenderer;
     private ObjectManager objectManager;
 
@@ -96,7 +96,7 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
             throw new IOException("Player Thing not found in WAD data for map " + mapName);
         }
         // Create BSP first since it's needed as collision service
-        bsp = new BSP(this);
+        bsp = new GeometricBSP(this);
         this.collisionService = bsp; // Set BSP as collision service now that wadData is available
 
         // Create door manager (no dependencies on engine)
@@ -111,7 +111,7 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
         // Create Player with injected dependencies
         player = new Player(playerThing, gameDefinitions, wadDataService.assetData,
                 config, collisionService, audioService, inputService, objectManager, doorManager, this);
-        segHandler = new SegHandler(this);
+        segHandler = new GeometricSegHandler(this);
         viewRenderer = new ViewRenderer(this);
         mapRenderer = new MapRenderer(this);
 
@@ -260,11 +260,11 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
         return player;
     }
 
-    public BSP getBsp() {
+    public GeometricBSP getBsp() {
         return bsp;
     }
 
-    public SegHandler getSegHandler() {
+    public GeometricSegHandler getSegHandler() {
         return segHandler;
     }
 

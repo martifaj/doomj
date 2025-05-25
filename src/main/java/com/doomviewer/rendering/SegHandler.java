@@ -14,7 +14,7 @@ import java.util.*;
 import java.util.List;
 import java.util.ArrayList;
 
-import static com.doomviewer.game.BSP.normalizeAngle;
+import static com.doomviewer.game.GeometricBSP.normalizeAngle;
 
 
 public class SegHandler {
