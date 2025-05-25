@@ -307,17 +307,19 @@ public class ViewRenderer {
             double objWorldY = obj.pos.y;
             double objWorldZBase = obj.z; // Z of the sprite's base (feet)
 
-            // Enhanced camera space transformation using geometry classes (deprecated method)
+            // Enhanced camera space transformation using geometry classes
             Point2D objWorldPos = new Point2D(objWorldX, objWorldY);
             Point2D playerPos = new Point2D(player.pos.x, player.pos.y);
             Vector2D objToPlayer = playerPos.vectorTo(objWorldPos);
             
+            // Manual rotation to match original Doom coordinate system
+            // Original: camSpaceX = dx * -sinPlayerAngle + dy * cosPlayerAngle
+            //          camSpaceZ_Depth = dx * cosPlayerAngle + dy * sinPlayerAngle
             Angle playerAngle = Angle.degrees(player.angle);
-            Transform2D cameraTransform = Transform2D.rotation(playerAngle.negate());
-            Vector2D camSpaceVector = cameraTransform.transform(objToPlayer);
-            
-            double camSpaceX = camSpaceVector.x; // Perpendicular to view dir (screen X)
-            double camSpaceZ_Depth = camSpaceVector.y; // Along view dir (depth)
+            double dx = objToPlayer.x;
+            double dy = objToPlayer.y;
+            double camSpaceX = dx * (-playerAngle.sin()) + dy * playerAngle.cos();
+            double camSpaceZ_Depth = dx * playerAngle.cos() + dy * playerAngle.sin();
 
 
             if (camSpaceZ_Depth <= 0.5) continue; // Clip behind or too close (near plane)
