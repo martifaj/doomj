@@ -146,7 +146,7 @@ public abstract class MapObject {
             ticsRemainingInState--;
         }
 
-        if (ticsRemainingInState <= 0 && ticsRemainingInState != Integer.MAX_VALUE) {
+        if (ticsRemainingInState <= 0) {
             if (currentStateDef.action != null) {
                 currentStateDef.action.execute(this, objectManager, player, audioService, engineTmp, collisionService);
             }

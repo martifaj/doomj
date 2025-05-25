@@ -182,14 +182,6 @@ public class AssetData {
 
             String lumpNameUpper = lumpInfo.lumpName.toUpperCase();
 
-            if (lumpNameUpper.startsWith("BEXP")) {
-                LOGGER.info("Loading explosion sprite: " + lumpNameUpper + " (size: " + lumpInfo.lumpSize + ")");
-            }
-            
-            if (lumpNameUpper.startsWith("TROO")) {
-                System.out.println("Loading Imp sprite: " + lumpNameUpper + " (size: " + lumpInfo.lumpSize + ")");
-            }
-            
             Patch patch = new Patch(this, lumpNameUpper, true); // Use uppercase consistently
             this.spritePatches.put(lumpNameUpper, patch);
             loadedSpriteImages.put(lumpNameUpper, patch.getImage());

@@ -1,9 +1,11 @@
-package com.doomviewer.rendering;
+package com.doomviewer.rendering.bsp;
 
 import com.doomviewer.misc.Constants;
 import com.doomviewer.geometry.*;
 import com.doomviewer.game.Player;
 import com.doomviewer.game.DoomEngine;
+import com.doomviewer.rendering.DrawSeg;
+import com.doomviewer.rendering.ViewRenderer;
 import com.doomviewer.wad.WADDataService;
 import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Sector;
@@ -18,7 +20,7 @@ import java.util.ArrayList;
  * Enhanced SegHandler that uses the new geometry classes for cleaner and more maintainable code.
  * This demonstrates how the geometry package can be used to simplify complex rendering calculations.
  */
-public class GeometricSegHandler {
+public class SegHandler {
     public static final double MAX_SCALE = 64.0;
     public static final double MIN_SCALE = 0.00390625; // 1/256
 
@@ -42,7 +44,7 @@ public class GeometricSegHandler {
     // DrawSeg tracking for sprite occlusion
     private List<DrawSeg> drawSegs;
 
-    public GeometricSegHandler(DoomEngine engine) {
+    public SegHandler(DoomEngine engine) {
         this.engine = engine;
         this.wadDataService = engine.getWadData();
         this.player = engine.getPlayer();

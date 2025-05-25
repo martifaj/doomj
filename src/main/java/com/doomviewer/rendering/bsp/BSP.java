@@ -1,10 +1,10 @@
-package com.doomviewer.game;
+package com.doomviewer.rendering.bsp;
 
+import com.doomviewer.game.DoomEngine;
+import com.doomviewer.game.Player;
 import com.doomviewer.misc.Constants;
 import com.doomviewer.geometry.*;
-import com.doomviewer.rendering.SectorRenderInfo;
 import com.doomviewer.services.CollisionService;
-import com.doomviewer.wad.datatypes.Linedef;
 import com.doomviewer.wad.datatypes.Node;
 import com.doomviewer.wad.datatypes.Seg;
 import com.doomviewer.wad.datatypes.SubSector;
@@ -17,8 +17,8 @@ import java.util.logging.Logger;
  * Demonstrates cleaner and more maintainable geometric calculations.
  * This class implements CollisionService and can replace the original BSP.
  */
-public class GeometricBSP implements CollisionService {
-    private static final Logger LOGGER = Logger.getLogger(GeometricBSP.class.getName());
+public class BSP implements CollisionService {
+    private static final Logger LOGGER = Logger.getLogger(BSP.class.getName());
     public static final int SUB_SECTOR_IDENTIFIER = 0x8000;
 
     private DoomEngine engine;
@@ -31,7 +31,7 @@ public class GeometricBSP implements CollisionService {
     private Angle fieldOfView;
     public boolean isTraverseBsp;
 
-    public GeometricBSP(DoomEngine engine) {
+    public BSP(DoomEngine engine) {
         this.engine = engine;
         this.player = null;
         this.nodes = engine.getWadData().nodes;

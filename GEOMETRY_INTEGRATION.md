@@ -198,15 +198,6 @@ Angle wallNormal = wallAngle.add(Angle.degrees(90));
 Angle incidenceAngle = playerAngle.shortestDistanceTo(wallNormal);
 ```
 
-## Testing
-
-Run the demonstration class to see the geometry package in action:
-```bash
-java com.doomviewer.geometry.DoomGeometryDemo
-```
-
-This will show examples of all major geometry operations used in Doom rendering.
-
 ## Performance Considerations
 
 - All geometry classes are designed for performance with minimal object allocation

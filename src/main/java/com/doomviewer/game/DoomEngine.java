@@ -4,10 +4,9 @@ import com.doomviewer.config.GameConfiguration;
 import com.doomviewer.game.objects.GameDefinitions;
 import com.doomviewer.misc.Constants;
 import com.doomviewer.misc.InputHandler;
-import com.doomviewer.rendering.FrameBuffer;
-import com.doomviewer.rendering.MapRenderer;
-import com.doomviewer.rendering.GeometricSegHandler;
-import com.doomviewer.rendering.ViewRenderer;
+import com.doomviewer.rendering.*;
+import com.doomviewer.rendering.bsp.BSP;
+import com.doomviewer.rendering.bsp.SegHandler;
 import com.doomviewer.services.AudioService;
 import com.doomviewer.services.CollisionService;
 import com.doomviewer.services.GameEngineTmp;
@@ -46,8 +45,8 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
     private MapRenderer mapRenderer;
     private Player player;
     private DoorManager doorManager;
-    private GeometricBSP bsp;
-    private GeometricSegHandler segHandler;
+    private BSP bsp;
+    private SegHandler segHandler;
     private ViewRenderer viewRenderer;
     private ObjectManager objectManager;
 
@@ -96,7 +95,7 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
             throw new IOException("Player Thing not found in WAD data for map " + mapName);
         }
         // Create BSP first since it's needed as collision service
-        bsp = new GeometricBSP(this);
+        bsp = new BSP(this);
         this.collisionService = bsp; // Set BSP as collision service now that wadData is available
 
         // Create door manager (no dependencies on engine)
@@ -111,7 +110,7 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
         // Create Player with injected dependencies
         player = new Player(playerThing, gameDefinitions, wadDataService.assetData,
                 config, collisionService, audioService, inputService, objectManager, doorManager, this);
-        segHandler = new GeometricSegHandler(this);
+        segHandler = new SegHandler(this);
         viewRenderer = new ViewRenderer(this);
         mapRenderer = new MapRenderer(this);
 
@@ -260,11 +259,11 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
         return player;
     }
 
-    public GeometricBSP getBsp() {
+    public BSP getBsp() {
         return bsp;
     }
 
-    public GeometricSegHandler getSegHandler() {
+    public SegHandler getSegHandler() {
         return segHandler;
     }
 
@@ -330,7 +329,7 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
         //Logger.getLogger("com.doomviewer.game.Door").setLevel(Level.INFO);
         //Logger.getLogger("com.doomviewer.game.Player").setLevel(Level.INFO);
         //Logger.getLogger("com.doomviewer.game.DoorManager").setLevel(Level.INFO);
-        //Logger.getLogger("com.doomviewer.game.BSP").setLevel(Level.INFO);
+        //Logger.getLogger("com.doomviewer.rendering.bsp.BSP").setLevel(Level.INFO);
 
         // Parse command line arguments
         String wadFilePath = "DOOM1.WAD";
