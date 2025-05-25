@@ -130,11 +130,17 @@ public class BSP implements CollisionService {
     
     /**
      * Check which side of BSP partition the point is on (matching original logic).
+     * Enhanced to use geometry classes.
      */
     private boolean isOnBackSide(Node node, double pX, double pY) {
-        double dx = pX - node.xPartition;
-        double dy = pY - node.yPartition;
-        return (dx * node.dyPartition - dy * node.dxPartition) <= 0;
+        Point2D point = new Point2D(pX, pY);
+        Point2D partitionPoint = new Point2D(node.xPartition, node.yPartition);
+        Vector2D toPoint = partitionPoint.vectorTo(point);
+        Vector2D partitionDirection = new Vector2D(node.dxPartition, node.dyPartition);
+        
+        // Cross product to determine which side of the partition line the point is on
+        double crossProduct = toPoint.cross(partitionDirection);
+        return crossProduct <= 0;
     }
 
     /**
@@ -271,13 +277,12 @@ public class BSP implements CollisionService {
     
     /**
      * Calculate angle to a point (matching original pointToAngle).
+     * Enhanced to use geometry classes.
      */
     private double pointToAngle(Point2D vertex, Point2D playerPos) {
-        double dx = vertex.x - playerPos.x;
-        double dy = vertex.y - playerPos.y;
-        double angleRad = Math.atan2(dy, dx);
-        double angleDeg = Math.toDegrees(angleRad);
-        return normalizeAngle360(angleDeg); // Ensure 0-360 range
+        Vector2D toVertex = playerPos.vectorTo(vertex);
+        Angle angle = toVertex.angle();
+        return normalizeAngle360(angle.degrees()); // Ensure 0-360 range
     }
     
     /**

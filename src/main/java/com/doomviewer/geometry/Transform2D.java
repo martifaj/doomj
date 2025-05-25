@@ -48,6 +48,16 @@ public class Transform2D {
         return new Transform2D(sx, 0, 0, 0, sy, 0);
     }
 
+    /**
+     * Creates a custom transformation matrix.
+     * Matrix format: [m00 m01 m02]
+     *                [m10 m11 m12]
+     *                [ 0   0   1 ]
+     */
+    public static Transform2D matrix(double m00, double m01, double m02, double m10, double m11, double m12) {
+        return new Transform2D(m00, m01, m02, m10, m11, m12);
+    }
+
     public static Transform2D scale(double s) {
         return scale(s, s);
     }

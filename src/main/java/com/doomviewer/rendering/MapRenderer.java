@@ -1,7 +1,7 @@
 package com.doomviewer.rendering;
 
 import com.doomviewer.misc.Constants;
-import com.doomviewer.misc.math.Vector2D;
+import com.doomviewer.geometry.*;
 import com.doomviewer.game.Player;
 import com.doomviewer.game.DoomEngine;
 import com.doomviewer.wad.WADDataService;
@@ -20,8 +20,8 @@ import java.util.Random;
 public class MapRenderer {
     private DoomEngine engine;
     private WADDataService wadDataService;
-    private List<Vector2D> remappedVertexes;
-    private double xMin, xMax, yMin, yMax; // Original map bounds
+    private List<Point2D> remappedVertexes;
+    private GeometryUtils.BoundingBox mapBounds; // Enhanced bounds using geometry classes
     private Player player;
     private Random random = new Random();
 
@@ -36,29 +36,34 @@ public class MapRenderer {
 
     private void calculateMapBounds() {
         if (wadDataService.vertexes.isEmpty()) {
-            xMin = yMin = -1; xMax = yMax = 1; // Default bounds
+            mapBounds = new GeometryUtils.BoundingBox(-1, -1, 1, 1); // Default bounds
             return;
         }
-        List<Double> xCoords = new ArrayList<>();
-        List<Double> yCoords = new ArrayList<>();
-        for (Vector2D v : wadDataService.vertexes) {
-            xCoords.add(v.x);
-            yCoords.add(v.y);
+        
+        // Convert old Vector2D vertices to Point2D and calculate bounds
+        Point2D[] vertices = new Point2D[wadDataService.vertexes.size()];
+        for (int i = 0; i < wadDataService.vertexes.size(); i++) {
+            com.doomviewer.misc.math.Vector2D v = wadDataService.vertexes.get(i);
+            vertices[i] = new Point2D(v.x, v.y);
         }
-        xMin = Collections.min(xCoords);
-        xMax = Collections.max(xCoords);
-        yMin = Collections.min(yCoords);
-        yMax = Collections.max(yCoords);
-
+        
+        mapBounds = GeometryUtils.boundingBox(vertices);
+        
         // Ensure bounds have some extent to prevent division by zero in remap
-        if (xMin == xMax) xMax = xMin + 1;
-        if (yMin == yMax) yMax = yMin + 1;
+        if (mapBounds.width() == 0) {
+            mapBounds = new GeometryUtils.BoundingBox(mapBounds.minX, mapBounds.minY, 
+                                                     mapBounds.minX + 1, mapBounds.maxY);
+        }
+        if (mapBounds.height() == 0) {
+            mapBounds = new GeometryUtils.BoundingBox(mapBounds.minX, mapBounds.minY, 
+                                                     mapBounds.maxX, mapBounds.minY + 1);
+        }
     }
 
     private void remapVertexes() {
         remappedVertexes = new ArrayList<>();
-        for (Vector2D v : wadDataService.vertexes) {
-            remappedVertexes.add(new Vector2D(remapX(v.x), remapY(v.y)));
+        for (com.doomviewer.misc.math.Vector2D v : wadDataService.vertexes) {
+            remappedVertexes.add(new Point2D(remapX(v.x), remapY(v.y)));
         }
     }
 
@@ -66,18 +71,18 @@ public class MapRenderer {
         double margin = 30; // Margin from screen edge for map display
         double outMin = margin;
         double outMax = Constants.WIDTH - margin;
-        // Clamp n to bounds to avoid extreme values if player goes off map for drawing map elements
-        worldX = Math.max(xMin, Math.min(worldX, xMax));
-        return (worldX - xMin) * (outMax - outMin) / (xMax - xMin) + outMin;
+        // Clamp to bounds to avoid extreme values if player goes off map for drawing map elements
+        worldX = GeometryUtils.clamp(worldX, mapBounds.minX, mapBounds.maxX);
+        return (worldX - mapBounds.minX) * (outMax - outMin) / mapBounds.width() + outMin;
     }
 
     private double remapY(double worldY) {
         double margin = 30;
         double outMin = margin;
         double outMax = Constants.HEIGHT - margin;
-        worldY = Math.max(yMin, Math.min(worldY, yMax));
+        worldY = GeometryUtils.clamp(worldY, mapBounds.minY, mapBounds.maxY);
         // Y is inverted for screen coordinates (0 at top)
-        return Constants.HEIGHT - ((worldY - yMin) * (outMax - outMin) / (yMax - yMin) + outMin);
+        return Constants.HEIGHT - ((worldY - mapBounds.minY) * (outMax - outMin) / mapBounds.height() + outMin);
     }
 
     public void draw(Graphics2D g2d) {
@@ -102,33 +107,39 @@ public class MapRenderer {
             if (line.startVertexId < 0 || line.startVertexId >= remappedVertexes.size() ||
                     line.endVertexId < 0 || line.endVertexId >= remappedVertexes.size()) continue;
 
-            Vector2D p1 = remappedVertexes.get(line.startVertexId);
-            Vector2D p2 = remappedVertexes.get(line.endVertexId);
+            Point2D p1 = remappedVertexes.get(line.startVertexId);
+            Point2D p2 = remappedVertexes.get(line.endVertexId);
             g2d.drawLine((int) p1.x, (int) p1.y, (int) p2.x, (int) p2.y);
         }
     }
 
     public void drawPlayer(Graphics2D g2d) {
-        double playerScreenX = remapX(player.pos.x);
-        double playerScreenY = remapY(player.pos.y);
+        // Use geometry classes for cleaner player position handling
+        Point2D playerWorldPos = new Point2D(player.pos.x, player.pos.y);
+        Point2D playerScreenPos = new Point2D(remapX(playerWorldPos.x), remapY(playerWorldPos.y));
 
         g2d.setColor(Color.ORANGE);
-        g2d.fillOval((int) (playerScreenX - 5), (int) (playerScreenY - 5), 10, 10);
+        g2d.fillOval((int) (playerScreenPos.x - 5), (int) (playerScreenPos.y - 5), 10, 10);
 
-        // Draw FOV lines
+        // Draw FOV lines using geometry classes
         double lineLength = 50; // Length of FOV lines on map
-        double angleRad = Math.toRadians(-player.angle); // Negate for screen Y-down, math angle convention
-
-        double angleL = Math.toRadians(-player.angle + Constants.H_FOV);
-        double angleR = Math.toRadians(-player.angle - Constants.H_FOV);
+        Angle playerAngle = Angle.degrees(-player.angle); // Negate for screen Y-down convention
+        Angle halfFOV = Angle.degrees(Constants.H_FOV);
+        
+        Angle angleL = playerAngle.add(halfFOV);
+        Angle angleR = playerAngle.subtract(halfFOV);
+        
+        Vector2D directionL = Vector2D.fromAngle(angleL).multiply(lineLength);
+        Vector2D directionR = Vector2D.fromAngle(angleR).multiply(lineLength);
+        
+        Point2D endPointL = playerScreenPos.add(directionL);
+        Point2D endPointR = playerScreenPos.add(directionR);
 
         g2d.setColor(Color.YELLOW);
-        g2d.drawLine((int)playerScreenX, (int)playerScreenY,
-                (int)(playerScreenX + lineLength * Math.cos(angleL)),
-                (int)(playerScreenY + lineLength * Math.sin(angleL)));
-        g2d.drawLine((int)playerScreenX, (int)playerScreenY,
-                (int)(playerScreenX + lineLength * Math.cos(angleR)),
-                (int)(playerScreenY + lineLength * Math.sin(angleR)));
+        g2d.drawLine((int)playerScreenPos.x, (int)playerScreenPos.y,
+                (int)endPointL.x, (int)endPointL.y);
+        g2d.drawLine((int)playerScreenPos.x, (int)playerScreenPos.y,
+                (int)endPointR.x, (int)endPointR.y);
     }
 
     // For BSP debugging: draw vlines for segs
@@ -145,8 +156,8 @@ public class MapRenderer {
     public void drawSegOnMap(Graphics2D g2d, Seg seg) {
         if (seg.startVertexId < 0 || seg.startVertexId >= remappedVertexes.size() ||
                 seg.endVertexId < 0 || seg.endVertexId >= remappedVertexes.size()) return;
-        Vector2D v1 = remappedVertexes.get(seg.startVertexId);
-        Vector2D v2 = remappedVertexes.get(seg.endVertexId);
+        Point2D v1 = remappedVertexes.get(seg.startVertexId);
+        Point2D v2 = remappedVertexes.get(seg.endVertexId);
         g2d.setColor(Color.GREEN);
         g2d.setStroke(new BasicStroke(2));
         g2d.drawLine((int)v1.x, (int)v1.y, (int)v2.x, (int)v2.y);
