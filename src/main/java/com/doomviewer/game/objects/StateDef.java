@@ -39,14 +39,37 @@ public class StateDef {
         // Y = Frame Character (A-Z) based on frame index
         // R = Rotation (0-8, different for different sprite types)
         char frameChar = (char) ('A' + getFrameIndex());
-        int rotation = getRotationForSprite(spriteName.getName());
+        int rotation = getRotationForSprite(spriteName.getName(), getFrameIndex());
         return String.format("%s%c%d", spriteName.getName(), frameChar, rotation);
     }
     
-    private int getRotationForSprite(String spriteName) {
-        // Different sprite types use different rotations
+    private int getRotationForSprite(String spriteName, int frameIndex) {
+        // Death frames (H and beyond, frameIndex >= 7) always use rotation 0
+        // This is because dead enemies only have one rotation in WAD files
+        if (frameIndex >= 7) {
+            switch (spriteName) {
+                case "POSS":    // Zombieman
+                case "SPOS":    // Shotgun guy
+                case "TROO":    // Imp
+                case "SARG":    // Demon
+                case "HEAD":    // Cacodemon
+                case "BOSS":    // Baron of Hell
+                case "SKUL":    // Lost Soul
+                case "PAIN":    // Pain Elemental
+                case "FATB":    // Mancubus
+                case "SKEL":    // Revenant
+                case "CPOS":    // Chaingunner
+                case "VILE":    // Archvile
+                case "SPID":    // Spider Mastermind
+                case "BSPI":    // Arachnotron
+                case "CYBR":    // Cyberdemon
+                    return 0; // Death frames use rotation 0
+            }
+        }
+        
+        // Living frames: Different sprite types use different rotations
         switch (spriteName) {
-            // Monsters/enemies use rotation 1
+            // Monsters/enemies use rotation 1 for living frames
             case "POSS":    // Zombieman
             case "SPOS":    // Shotgun guy
             case "TROO":    // Imp
