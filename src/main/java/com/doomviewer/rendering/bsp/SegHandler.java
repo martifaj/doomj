@@ -214,15 +214,13 @@ public class SegHandler {
 
         // Apply the stretched line bug fix using geometry utilities
         double positiveOffsetAngle = offsetAngle.normalizeTo360().degrees();
-        if (GeometryUtils.approximately(positiveOffsetAngle, 90.0, 1.0)) {
+        boolean applyStretchFix = GeometryUtils.approximately(positiveOffsetAngle, 90.0, 1.0);
+        if (applyStretchFix) {
             rwScale1 *= 0.01;
         }
 
-        double rwScaleStep = 0;
-        if (x1 < x2) {
-            double scale2 = scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance);
-            rwScaleStep = (scale2 - rwScale1) / (x2 - x1);
-        }
+        // Note: We'll calculate scale per-column instead of interpolating linearly
+        // This fixes the wall height inaccuracy bug when moving back from walls
 
         int[][] wallTexture = bDrawWall ? textures.get(wallTextureId) : null;
         double middleTexAlt = 0;
@@ -241,16 +239,23 @@ public class SegHandler {
         Angle playerAngle = Angle.degrees(player.angle);
         Angle rwCenterAngle = rwNormalAngle.subtract(playerAngle);
 
-        double wallY1 = Constants.H_HEIGHT - worldFrontZ1 * rwScale1;
-        double wallY1Step = -rwScaleStep * worldFrontZ1;
-        double wallY2 = Constants.H_HEIGHT - worldFrontZ2 * rwScale1;
-        double wallY2Step = -rwScaleStep * worldFrontZ2;
-
         for (int x = x1; x <= x2; x++) {
             if (!screenRange.contains(x)) continue;
 
             int curUpperClip = upperClip[x];
             int curLowerClip = lowerClip[x];
+
+            // Calculate accurate scale for this specific column
+            double currentScale = scaleFromGlobalAngle(x, rwNormalAngle, rwDistance);
+            
+            // Apply stretch fix if needed
+            if (applyStretchFix) {
+                currentScale *= 0.01;
+            }
+
+            // Calculate wall Y positions using the accurate scale for this column
+            double wallY1 = Constants.H_HEIGHT - worldFrontZ1 * currentScale;
+            double wallY2 = Constants.H_HEIGHT - worldFrontZ2 * currentScale;
 
             int drawWallY1 = (int) Math.round(wallY1);
             int drawWallY2 = (int) Math.round(wallY2);
@@ -271,8 +276,8 @@ public class SegHandler {
                 if (wy1 <= wy2) {
                     Angle angle = rwCenterAngle.subtract(xToAngleTable[x]);
                     double textureColumn = rwDistance * angle.tan() - rwOffset;
-                    double invScale = 1.0 / rwScale1;
-                    double columnDepth = Constants.SCREEN_DIST / rwScale1;
+                    double invScale = 1.0 / currentScale;
+                    double columnDepth = Constants.SCREEN_DIST / currentScale;
                     
                     ViewRenderer.drawWallColumn(framebuffer, engine.getDepthBuffer(), wallTexture, 
                                               textureColumn, x, wy1, wy2, middleTexAlt, invScale, 
@@ -292,15 +297,10 @@ public class SegHandler {
             // Update clipping arrays for solid walls
             upperClip[x] = Constants.HEIGHT - 1;
             lowerClip[x] = 0;
-
-            // Update scales and Y positions for next column
-            rwScale1 += rwScaleStep;
-            wallY1 += wallY1Step;
-            wallY2 += wallY2Step;
         }
         
         // Create DrawSeg for this solid wall segment
-        double avgScale = (rwScale1 + scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance)) / 2.0;
+        double avgScale = (scaleFromGlobalAngle(x1, rwNormalAngle, rwDistance) + scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance)) / 2.0;
         createDrawSeg(x1, x2, avgScale, false, null);
     }
 
@@ -416,12 +416,8 @@ public class SegHandler {
         double rwDistance = hypotenuse * offsetAngle.cos();
         if (rwDistance < MIN_SCALE) rwDistance = MIN_SCALE;
 
-        double rwScale1 = scaleFromGlobalAngle(x1, rwNormalAngle, rwDistance);
-        double rwScaleStep = 0;
-        if (x1 < x2) {
-            double scale2 = scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance);
-            rwScaleStep = (scale2 - rwScale1) / (x2 - x1);
-        }
+        // Note: We'll calculate scale per-column instead of interpolating linearly
+        // This fixes the wall height inaccuracy bug when moving back from walls
 
         // Texture setup for upper and lower walls
         int[][] upperTexture = bDrawUpperWall ? textures.get(upperWallTexId) : null;
@@ -452,29 +448,28 @@ public class SegHandler {
         Angle playerAngle = Angle.degrees(player.angle);
         Angle rwCenterAngle = rwNormalAngle.subtract(playerAngle);
 
-        // Calculate wall positions
-        double wallY1 = Constants.H_HEIGHT - worldFrontZ1 * rwScale1; // Front ceiling
-        double wallY1Step = -rwScaleStep * worldFrontZ1;
-        double wallY2 = Constants.H_HEIGHT - worldFrontZ2 * rwScale1; // Front floor
-        double wallY2Step = -rwScaleStep * worldFrontZ2;
-
-        double portalY1 = 0, portalY1Step = 0; // Back ceiling
-        if (bDrawUpperWall || bDrawCeil) {
-            portalY1 = (worldBackZ1 > worldFrontZ2) ? (Constants.H_HEIGHT - worldBackZ1 * rwScale1) : wallY2;
-            portalY1Step = (worldBackZ1 > worldFrontZ2) ? (-rwScaleStep * worldBackZ1) : wallY2Step;
-        }
-
-        double portalY2 = 0, portalY2Step = 0; // Back floor
-        if (bDrawLowerWall || bDrawFloor) {
-            portalY2 = (worldBackZ2 < worldFrontZ1) ? (Constants.H_HEIGHT - worldBackZ2 * rwScale1) : wallY1;
-            portalY2Step = (worldBackZ2 < worldFrontZ1) ? (-rwScaleStep * worldBackZ2) : wallY1Step;
-        }
-
         for (int x = x1; x <= x2; x++) {
             if (!screenRange.contains(x)) continue;
 
             int curUpperClip = upperClip[x];
             int curLowerClip = lowerClip[x];
+
+            // Calculate accurate scale for this specific column
+            double currentScale = scaleFromGlobalAngle(x, rwNormalAngle, rwDistance);
+
+            // Calculate wall positions using the accurate scale for this column
+            double wallY1 = Constants.H_HEIGHT - worldFrontZ1 * currentScale; // Front ceiling
+            double wallY2 = Constants.H_HEIGHT - worldFrontZ2 * currentScale; // Front floor
+
+            double portalY1 = 0; // Back ceiling
+            if (bDrawUpperWall || bDrawCeil) {
+                portalY1 = (worldBackZ1 > worldFrontZ2) ? (Constants.H_HEIGHT - worldBackZ1 * currentScale) : wallY2;
+            }
+
+            double portalY2 = 0; // Back floor
+            if (bDrawLowerWall || bDrawFloor) {
+                portalY2 = (worldBackZ2 < worldFrontZ1) ? (Constants.H_HEIGHT - worldBackZ2 * currentScale) : wallY1;
+            }
 
             int drawWallY1 = (int) Math.round(wallY1);       // Front ceil
             int drawWallY2 = (int) Math.round(wallY2);       // Front floor
@@ -485,7 +480,7 @@ public class SegHandler {
             if (bDrawUpperWall || bDrawLowerWall) {
                 Angle angle = rwCenterAngle.subtract(xToAngleTable[x]);
                 textureColumn = rwDistance * angle.tan() - rwOffset;
-                invScale = 1.0 / rwScale1;
+                invScale = 1.0 / currentScale;
             }
 
             if (bDrawCeil) {
@@ -501,7 +496,7 @@ public class SegHandler {
                 int wy1 = Math.max(drawWallY1, curUpperClip + 1);
                 int wy2 = Math.min(drawPortalY1 - 1, curLowerClip - 1);
                 if (wy1 <= wy2) {
-                    double columnDepth = Constants.SCREEN_DIST / rwScale1;
+                    double columnDepth = Constants.SCREEN_DIST / currentScale;
                     ViewRenderer.drawWallColumn(framebuffer, engine.getDepthBuffer(), upperTexture, textureColumn, x, wy1, wy2, upperTexAlt, invScale, light, columnDepth);
                     curUpperClip = Math.max(curUpperClip, wy2);
                 }
@@ -523,7 +518,7 @@ public class SegHandler {
                 int wy1 = Math.max(drawPortalY2, curUpperClip + 1);
                 int wy2 = Math.min(drawWallY2 - 1, curLowerClip - 1);
                 if (wy1 <= wy2) {
-                    double columnDepth = Constants.SCREEN_DIST / rwScale1;
+                    double columnDepth = Constants.SCREEN_DIST / currentScale;
                     ViewRenderer.drawWallColumn(framebuffer, engine.getDepthBuffer(), lowerTexture, textureColumn, x, wy1, wy2, lowerTexAlt, invScale, light, columnDepth);
                     curLowerClip = Math.min(curLowerClip, wy1);
                 }
@@ -532,20 +527,10 @@ public class SegHandler {
             // Update clip for things seen through the portal
             this.upperClip[x] = curUpperClip;
             this.lowerClip[x] = curLowerClip;
-
-            rwScale1 += rwScaleStep;
-            wallY1 += wallY1Step;
-            wallY2 += wallY2Step;
-            if (bDrawUpperWall || bDrawCeil) {
-                portalY1 += portalY1Step;
-            }
-            if (bDrawLowerWall || bDrawFloor) {
-                portalY2 += portalY2Step;
-            }
         }
 
         // Create DrawSeg for this portal segment
-        double avgScale = (rwScale1 + scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance)) / 2.0;
+        double avgScale = (scaleFromGlobalAngle(x1, rwNormalAngle, rwDistance) + scaleFromGlobalAngle(x2, rwNormalAngle, rwDistance)) / 2.0;
         createDrawSeg(x1, x2, avgScale, false, null);
     }
 
