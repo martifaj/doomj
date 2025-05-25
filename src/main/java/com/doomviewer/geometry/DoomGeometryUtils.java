@@ -231,4 +231,60 @@ public class DoomGeometryUtils {
         Angle angleDiff = wallNormal.shortestDistanceTo(lightDirection);
         return Math.max(0.3, Math.cos(angleDiff.radians())); // Minimum 30% lighting
     }
+
+    /**
+     * Transforms a world-space vector to Doom's camera space using the original engine's
+     * coordinate transformation. This is different from standard rotation matrices.
+     * 
+     * In Doom's camera space:
+     * - X axis: horizontal screen offset (negative = left, positive = right)
+     * - Y axis: depth (distance from player, positive = away from player)
+     * 
+     * @param worldVector Vector in world coordinates (typically from player to object)
+     * @param playerAngle Player's view angle
+     * @return Vector in camera space with x=horizontal offset, y=depth
+     */
+    public static Vector2D worldToCameraSpace(Vector2D worldVector, Angle playerAngle) {
+        // Original Doom transformation matrix:
+        // camSpaceX = dx * -sin(θ) + dy * cos(θ)    (horizontal screen offset)
+        // camSpaceY = dx * cos(θ) + dy * sin(θ)     (depth)
+        // 
+        // This matrix is: [-sin(θ)  cos(θ)]
+        //                 [ cos(θ)  sin(θ)]
+        double dx = worldVector.x;
+        double dy = worldVector.y;
+        double camSpaceX = dx * (-playerAngle.sin()) + dy * playerAngle.cos();
+        double camSpaceY = dx * playerAngle.cos() + dy * playerAngle.sin();
+        return new Vector2D(camSpaceX, camSpaceY);
+    }
+
+    /**
+     * Transforms a world position to Doom's camera space relative to the player.
+     * 
+     * @param worldPos Position in world coordinates
+     * @param playerPos Player's position in world coordinates
+     * @param playerAngle Player's view angle
+     * @return Vector in camera space with x=horizontal offset, y=depth
+     */
+    public static Vector2D worldPositionToCameraSpace(Point2D worldPos, Point2D playerPos, Angle playerAngle) {
+        Vector2D worldVector = playerPos.vectorTo(worldPos);
+        return worldToCameraSpace(worldVector, playerAngle);
+    }
+
+    /**
+     * Creates a Transform2D that performs Doom's camera space transformation.
+     * This creates the specific transformation matrix used by the original Doom engine.
+     * 
+     * @param playerAngle Player's view angle
+     * @return Transform2D that converts world vectors to camera space
+     */
+    public static Transform2D createCameraTransform(Angle playerAngle) {
+        // Doom's camera transformation matrix:
+        // [-sin(θ)  cos(θ)  0]
+        // [ cos(θ)  sin(θ)  0]
+        // [   0       0     1]
+        double cos = playerAngle.cos();
+        double sin = playerAngle.sin();
+        return Transform2D.matrix(-sin, cos, 0, cos, sin, 0);
+    }
 }
