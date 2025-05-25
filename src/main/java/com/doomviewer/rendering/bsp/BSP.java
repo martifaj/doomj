@@ -6,6 +6,7 @@ import com.doomviewer.misc.Constants;
 import com.doomviewer.geometry.*;
 import com.doomviewer.services.CollisionService;
 import com.doomviewer.wad.datatypes.Node;
+import com.doomviewer.wad.datatypes.Sector;
 import com.doomviewer.wad.datatypes.Seg;
 import com.doomviewer.wad.datatypes.SubSector;
 
@@ -26,6 +27,7 @@ public class BSP implements CollisionService {
     private List<Node> nodes;
     private List<SubSector> subSectors;
     private List<Seg> segs;
+    private List<Sector> sectors;
     private int rootNodeId;
     private Projection projection;
     private Angle fieldOfView;
@@ -37,6 +39,7 @@ public class BSP implements CollisionService {
         this.nodes = engine.getWadData().nodes;
         this.subSectors = engine.getWadData().subSectors;
         this.segs = engine.getWadData().segments;
+        this.sectors = engine.getWadData().sectors;
         this.rootNodeId = this.nodes.size() - 1;
         this.isTraverseBsp = true;
         
@@ -430,12 +433,68 @@ public class BSP implements CollisionService {
      */
     @Override
     public double getSubSectorHeightAt(double x, double y) {
-        // Find the subsector containing this point
-        Point2D point = new Point2D(x, y);
+        // Find the subsector containing this point by traversing the BSP tree
+        int subSectorIndex = findSubSectorContainingPoint(x, y);
         
-        // For now, return a default height
-        // In a full implementation, this would traverse the BSP tree to find the correct subsector
-        return 0.0;
+        if (subSectorIndex < 0 || subSectorIndex >= subSectors.size()) {
+            return 0.0; // Default height if subsector not found
+        }
+        
+        // Get the subsector and find its sector through one of its segments
+        SubSector subSector = subSectors.get(subSectorIndex);
+        
+        // Get the first segment of this subsector to find the sector
+        if (subSector.firstSegId >= 0 && subSector.firstSegId < segs.size()) {
+            Seg seg = segs.get(subSector.firstSegId);
+            if (seg.frontSector != null) {
+                return seg.frontSector.floorHeight;
+            }
+        }
+        
+        return 0.0; // Default height if sector not found
+    }
+    
+    /**
+     * Traverse the BSP tree to find the subsector containing the given point.
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @return Index of the subsector containing the point, or -1 if not found
+     */
+    private int findSubSectorContainingPoint(double x, double y) {
+        if (nodes.isEmpty()) {
+            return -1;
+        }
+        
+        int nodeId = rootNodeId;
+        
+        // Traverse the BSP tree
+        while ((nodeId & SUB_SECTOR_IDENTIFIER) == 0) {
+            // This is a node, not a subsector
+            if (nodeId < 0 || nodeId >= nodes.size()) {
+                return -1; // Invalid node
+            }
+            
+            Node node = nodes.get(nodeId);
+            
+            // Determine which side of the partition line the point is on
+            // The partition line is defined by (xPartition, yPartition) + t * (dxPartition, dyPartition)
+            // We use the cross product to determine the side
+            double dx = x - node.xPartition;
+            double dy = y - node.yPartition;
+            double cross = dx * node.dyPartition - dy * node.dxPartition;
+            
+            // If cross product is positive, point is on the front side (right side)
+            // If negative, point is on the back side (left side)
+            if (cross >= 0) {
+                nodeId = node.frontChildId;
+            } else {
+                nodeId = node.backChildId;
+            }
+        }
+        
+        // We've reached a subsector (MSB is set)
+        int subSectorIndex = nodeId & (~SUB_SECTOR_IDENTIFIER); // Clear MSB to get index
+        return subSectorIndex;
     }
     
     // CollisionService interface implementation with adapter methods
