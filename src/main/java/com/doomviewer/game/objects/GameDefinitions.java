@@ -626,12 +626,12 @@ public class GameDefinitions {
         addState(StateNum.S_POSS_PAIN, SpriteNames.POSS, 6, 3, Actions.NULL, StateNum.S_POSS_PAIN2);
         addState(StateNum.S_POSS_PAIN2, SpriteNames.POSS, 6, 3, Actions.A_PAIN, StateNum.S_POSS_RUN1);
 
-        // Die: 5 frames (7,8,9,10,11), tics (5,5,5,5,-1) - using more conservative frame indices
+        // Die: 5 frames (7,8,9,10,11), tics (5,5,5,5,-1) - proper death sequence
         addState(StateNum.S_POSS_DIE1, SpriteNames.POSS, 7, 5, Actions.NULL, StateNum.S_POSS_DIE2);
         addState(StateNum.S_POSS_DIE2, SpriteNames.POSS, 8, 5, Actions.A_SCREAM, StateNum.S_POSS_DIE3);
         addState(StateNum.S_POSS_DIE3, SpriteNames.POSS, 9, 5, Actions.A_FALL, StateNum.S_POSS_DIE4);
         addState(StateNum.S_POSS_DIE4, SpriteNames.POSS, 10, 5, Actions.NULL, StateNum.S_POSS_DIE5);
-        addState(StateNum.S_POSS_DIE5, SpriteNames.POSS, 7, -1, Actions.NULL, StateNum.S_POSS_DIE5); // Use frame H instead of L
+        addState(StateNum.S_POSS_DIE5, SpriteNames.POSS, 11, -1, Actions.NULL, StateNum.S_POSS_DIE5); // Final dead body frame L
 
         // XDeath: 9 frames (12 to 20), tics (5...5, -1)
         addState(StateNum.S_POSS_XDIE1, SpriteNames.POSS, 12, 5, Actions.NULL, StateNum.S_POSS_XDIE2);
@@ -700,7 +700,7 @@ public class GameDefinitions {
         addState(StateNum.S_SPOS_DIE2, SpriteNames.SPOS, 8, 5, Actions.A_SCREAM, StateNum.S_SPOS_DIE3);
         addState(StateNum.S_SPOS_DIE3, SpriteNames.SPOS, 9, 5, Actions.A_FALL, StateNum.S_SPOS_DIE4);
         addState(StateNum.S_SPOS_DIE4, SpriteNames.SPOS, 10, 5, Actions.NULL, StateNum.S_SPOS_DIE5);
-        addState(StateNum.S_SPOS_DIE5, SpriteNames.SPOS, 7, -1, Actions.NULL, StateNum.S_SPOS_DIE5); // Use frame H instead of L
+        addState(StateNum.S_SPOS_DIE5, SpriteNames.SPOS, 11, -1, Actions.NULL, StateNum.S_SPOS_DIE5); // Final dead body frame L
 
         // XDeath: 9 frames (12 to 20), tics (5...5, -1)
         addState(StateNum.S_SPOS_XDIE1, SpriteNames.SPOS, 12, 5, Actions.NULL, StateNum.S_SPOS_XDIE2);
@@ -775,7 +775,7 @@ public class GameDefinitions {
         addState(StateNum.S_TROO_DIE3, SpriteNames.TROO, 9, 6, Actions.NULL, StateNum.S_TROO_DIE4);
         addState(StateNum.S_TROO_DIE4, SpriteNames.TROO, 10, 6, Actions.A_FALL, StateNum.S_TROO_DIE5);
         addState(StateNum.S_TROO_DIE5, SpriteNames.TROO, 11, 6, Actions.NULL, StateNum.S_TROO_DIE6);
-        addState(StateNum.S_TROO_DIE6, SpriteNames.TROO, 7, -1, Actions.NULL, StateNum.S_TROO_DIE6); // Use frame H instead of Q
+        addState(StateNum.S_TROO_DIE6, SpriteNames.TROO, 12, -1, Actions.NULL, StateNum.S_TROO_DIE6); // Final dead body frame M
 
         // XDeath: 8 frames (17,18,19,20,21,22,23,24), tics (5,5,5,5,5,5,5,-1) - TROOR to TROOY
         addState(StateNum.S_TROO_XDIE1, SpriteNames.TROO, 17, 5, Actions.NULL, StateNum.S_TROO_XDIE2);
