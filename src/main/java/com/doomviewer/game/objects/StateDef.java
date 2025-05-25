@@ -39,30 +39,30 @@ public class StateDef {
         // Y = Frame Character (A-Z) based on frame index
         // R = Rotation (0-8, different for different sprite types)
         char frameChar = (char) ('A' + getFrameIndex());
-        int rotation = getRotationForSprite(spriteName.getName(), getFrameIndex());
+        int rotation = getRotationForSprite(spriteName, getFrameIndex());
         return String.format("%s%c%d", spriteName.getName(), frameChar, rotation);
     }
     
-    private int getRotationForSprite(String spriteName, int frameIndex) {
+    private int getRotationForSprite(SpriteNames spriteName, int frameIndex) {
         // Death frames (H and beyond, frameIndex >= 7) always use rotation 0
         // This is because dead enemies only have one rotation in WAD files
         if (frameIndex >= 7) {
             switch (spriteName) {
-                case "POSS":    // Zombieman
-                case "SPOS":    // Shotgun guy
-                case "TROO":    // Imp
-                case "SARG":    // Demon
-                case "HEAD":    // Cacodemon
-                case "BOSS":    // Baron of Hell
-                case "SKUL":    // Lost Soul
-                case "PAIN":    // Pain Elemental
-                case "FATB":    // Mancubus
-                case "SKEL":    // Revenant
-                case "CPOS":    // Chaingunner
-                case "VILE":    // Archvile
-                case "SPID":    // Spider Mastermind
-                case "BSPI":    // Arachnotron
-                case "CYBR":    // Cyberdemon
+                case POSS:    // Zombieman
+                case SPOS:    // Shotgun guy
+                case TROO:    // Imp
+                case SARG:    // Demon
+                case HEAD:    // Cacodemon
+                case BOSS:    // Baron of Hell
+                case SKUL:    // Lost Soul
+                case PAIN:    // Pain Elemental
+                case FATB:    // Mancubus
+                case SKEL:    // Revenant
+                case CPOS:    // Chaingunner
+                case VILE:    // Archvile
+                case SPID:    // Spider Mastermind
+                case BSPI:    // Arachnotron
+                case CYBR:    // Cyberdemon
                     return 0; // Death frames use rotation 0
             }
         }
@@ -70,66 +70,66 @@ public class StateDef {
         // Living frames: Different sprite types use different rotations
         switch (spriteName) {
             // Monsters/enemies use rotation 1 for living frames
-            case "POSS":    // Zombieman
-            case "SPOS":    // Shotgun guy
-            case "TROO":    // Imp
-            case "SARG":    // Demon
-            case "HEAD":    // Cacodemon
-            case "BOSS":    // Baron of Hell
-            case "SKUL":    // Lost Soul
-            case "PAIN":    // Pain Elemental
-            case "FATB":    // Mancubus
-            case "SKEL":    // Revenant
-            case "CPOS":    // Chaingunner
-            case "VILE":    // Archvile
-            case "SPID":    // Spider Mastermind
-            case "BSPI":    // Arachnotron
-            case "CYBR":    // Cyberdemon
+            case POSS:    // Zombieman
+            case SPOS:    // Shotgun guy
+            case TROO:    // Imp
+            case SARG:    // Demon
+            case HEAD:    // Cacodemon
+            case BOSS:    // Baron of Hell
+            case SKUL:    // Lost Soul
+            case PAIN:    // Pain Elemental
+            case FATB:    // Mancubus
+            case SKEL:    // Revenant
+            case CPOS:    // Chaingunner
+            case VILE:    // Archvile
+            case SPID:    // Spider Mastermind
+            case BSPI:    // Arachnotron
+            case CYBR:    // Cyberdemon
                 return 1;
                 
             // Items, decorations, and barrels use rotation 0
-            case "BAR1":    // Barrels
-            case "BEXP":    // Barrel explosions
-            case "CLIP":    // Ammo
-            case "SHEL":    // Shells
-            case "ROCK":    // Rockets
-            case "CELL":    // Cells
-            case "STIM":    // Stimpak
-            case "MEDI":    // Medikit
-            case "ARM1":    // Green armor
-            case "ARM2":    // Blue armor
-            case "BON1":    // Health bonus
-            case "BON2":    // Armor bonus
-            case "BKEY":    // Blue key
-            case "RKEY":    // Red key
-            case "YKEY":    // Yellow key
-            case "BSKU":    // Blue skull key
-            case "RSKU":    // Red skull key
-            case "YSKU":    // Yellow skull key
-            case "SOUL":    // Soulsphere
-            case "MEGA":    // Megaarmor
-            case "PINV":    // Invulnerability
-            case "PSTR":    // Berserk
-            case "PINS":    // Invisibility
-            case "SUIT":    // Radiation suit
-            case "PMAP":    // Computer map
-            case "PVIS":    // Light amplification
-            case "ELEC":    // Tech pillar
+            case BAR1:    // Barrels
+            case BEXP:    // Barrel explosions
+            case CLIP:    // Ammo
+            case SHEL:    // Shells
+            case ROCK:    // Rockets
+            case CELL:    // Cells
+            case STIM:    // Stimpak
+            case MEDI:    // Medikit
+            case ARM1:    // Green armor
+            case ARM2:    // Blue armor
+            case BON1:    // Health bonus
+            case BON2:    // Armor bonus
+            case BKEY:    // Blue key
+            case RKEY:    // Red key
+            case YKEY:    // Yellow key
+            case BSKU:    // Blue skull key
+            case RSKU:    // Red skull key
+            case YSKU:    // Yellow skull key
+            case SOUL:    // Soulsphere
+            case MEGA:    // Megaarmor
+            case PINV:    // Invulnerability
+            case PSTR:    // Berserk
+            case PINS:    // Invisibility
+            case SUIT:    // Radiation suit
+            case PMAP:    // Computer map
+            case PVIS:    // Light amplification
+            case ELEC:    // Tech pillar
                 return 0;
                 
             // Weapons use rotation 0
-            case "PISG":    // Pistol
-            case "PISF":    // Pistol flash
-            case "SHTG":    // Shotgun
-            case "SHTF":    // Shotgun flash
-            case "CHGG":    // Chaingun
-            case "CHGF":    // Chaingun flash
-            case "MISG":    // Rocket launcher
-            case "MISF":    // Rocket launcher flash
-            case "PLSG":    // Plasma rifle
-            case "PLSF":    // Plasma rifle flash
-            case "BFGG":    // BFG
-            case "BFGF":    // BFG flash
+            case PISG:    // Pistol
+            case PISF:    // Pistol flash
+            case SHTG:    // Shotgun
+            case SHTF:    // Shotgun flash
+            case CHGG:    // Chaingun
+            case CHGF:    // Chaingun flash
+            case MISG:    // Rocket launcher
+            case MISF:    // Rocket launcher flash
+            case PLSG:    // Plasma rifle
+            case PLSF:    // Plasma rifle flash
+            case BFGG:    // BFG
+            case BFGF:    // BFG flash
                 return 0;
                 
             // Default to rotation 1 for unknown sprites (most monsters)
