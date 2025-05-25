@@ -150,8 +150,9 @@ public class DoomGeometryDemo {
         Transform2D inverse = combined.inverse();
         Point2D restored = inverse.transform(transformed);
         System.out.println("After inverse transformation: " + restored);
-        System.out.println("Close to original: " + GeometryUtils.approximately(point.x, restored.x) && 
-                                                   GeometryUtils.approximately(point.y, restored.y));
+        boolean closeToOriginal = GeometryUtils.approximately(point.x, restored.x) && 
+                                  GeometryUtils.approximately(point.y, restored.y);
+        System.out.println("Close to original: " + closeToOriginal);
         System.out.println();
     }
 

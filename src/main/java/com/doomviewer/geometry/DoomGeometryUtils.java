@@ -21,19 +21,20 @@ public class DoomGeometryUtils {
 
     /**
      * Creates a LineSegment2D from a Doom Linedef.
+     * Note: This requires the linedef to have vertex data populated.
      */
     public static LineSegment2D linedefToLineSegment(Linedef linedef) {
-        Point2D start = new Point2D(linedef.startVertex.x, linedef.startVertex.y);
-        Point2D end = new Point2D(linedef.endVertex.x, linedef.endVertex.y);
-        return new LineSegment2D(start, end);
+        // This would need to be implemented with access to the vertex array
+        // For now, we'll throw an exception to indicate this needs vertex lookup
+        throw new UnsupportedOperationException("linedefToLineSegment requires vertex lookup - use segToLineSegment instead");
     }
 
     /**
      * Creates a Line2D from a BSP node's partition line.
      */
     public static Line2D nodeToPartitionLine(Node node) {
-        Point2D start = new Point2D(node.partitionLineStartX, node.partitionLineStartY);
-        Vector2D direction = new Vector2D(node.changeInXAlongPartition, node.changeInYAlongPartition);
+        Point2D start = new Point2D(node.xPartition, node.yPartition);
+        Vector2D direction = new Vector2D(node.dxPartition, node.dyPartition);
         Point2D end = start.add(direction);
         return new Line2D(start, end);
     }
