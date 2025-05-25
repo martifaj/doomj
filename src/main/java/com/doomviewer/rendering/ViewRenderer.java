@@ -179,14 +179,12 @@ public class ViewRenderer {
             // Enhanced camera space transformation using geometry classes
             Point2D objPos = new Point2D(obj.pos.x, obj.pos.y);
             Point2D playerPos = new Point2D(player.pos.x, player.pos.y);
-            Vector2D objToPlayer = playerPos.vectorTo(objPos);
-            
             Angle playerAngle = Angle.degrees(player.angle);
-            Transform2D cameraTransform = Transform2D.rotation(playerAngle.negate());
-            Vector2D camSpaceVector = cameraTransform.transform(objToPlayer);
             
-            double camSpaceX = camSpaceVector.x;
-            double camSpaceZ_Depth = camSpaceVector.y;
+            // Use Doom-specific camera transformation
+            Vector2D camSpaceVector = DoomGeometryUtils.worldPositionToCameraSpace(objPos, playerPos, playerAngle);
+            double camSpaceX = camSpaceVector.x; // Horizontal screen offset
+            double camSpaceZ_Depth = camSpaceVector.y; // Depth
             
             if (camSpaceZ_Depth <= 0.5) continue; // Behind camera or too close
             

@@ -271,13 +271,12 @@ public class BSP implements CollisionService {
     
     /**
      * Calculate angle to a point (matching original pointToAngle).
+     * Enhanced to use geometry classes.
      */
     private double pointToAngle(Point2D vertex, Point2D playerPos) {
-        double dx = vertex.x - playerPos.x;
-        double dy = vertex.y - playerPos.y;
-        double angleRad = Math.atan2(dy, dx);
-        double angleDeg = Math.toDegrees(angleRad);
-        return normalizeAngle360(angleDeg); // Ensure 0-360 range
+        Vector2D toVertex = playerPos.vectorTo(vertex);
+        Angle angle = toVertex.angle();
+        return normalizeAngle360(angle.degrees()); // Ensure 0-360 range
     }
     
     /**
