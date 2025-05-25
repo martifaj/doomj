@@ -66,6 +66,7 @@ public class StateDef {
                 
             // Items, decorations, and barrels use rotation 0
             case "BAR1":    // Barrels
+            case "BEXP":    // Barrel explosions
             case "CLIP":    // Ammo
             case "SHEL":    // Shells
             case "ROCK":    // Rockets
