@@ -1,7 +1,7 @@
 package com.doomviewer.rendering;
 
 import com.doomviewer.misc.Constants;
-import com.doomviewer.misc.math.Vector2D;
+import com.doomviewer.geometry.*;
 import com.doomviewer.game.Player;
 import com.doomviewer.game.DoomEngine;
 import com.doomviewer.wad.WADDataService;
