@@ -111,32 +111,45 @@ public class GeometricBSP implements CollisionService {
                 continue;
             }
 
-            // Project segment to screen space
-            Projection.ScreenSegment screenSeg = projectSegmentToScreen(seg, playerPos, playerAngle);
-            if (screenSeg == null || !screenSeg.isVisible()) {
-                continue;
-            }
+            // Use original BSP-style projection logic
+            double[] segmentProjection = addSegmentToFov(seg, playerPos, playerAngle);
+            if (segmentProjection != null) {
+                // segmentProjection contains {x1, x2, rawWorldAngle1}
+                double screenX1 = segmentProjection[0];
+                double screenX2 = segmentProjection[1];
+                Angle rwAngle1 = Angle.degrees(segmentProjection[2]);
 
-            // Calculate the angle to the start of the segment
-            Point2D segStart = new Point2D(seg.startVertex.x, seg.startVertex.y);
-            Vector2D toSegStart = playerPos.vectorTo(segStart);
-            Angle rwAngle1 = toSegStart.angle();
-
-            // Pass to segment handler for rendering
-            if (engine.getSegHandler() != null) {
-                engine.getSegHandler().classifySegment(seg, screenSeg.startX, screenSeg.endX, rwAngle1);
+                // Pass to segment handler for rendering
+                if (engine.getSegHandler() != null) {
+                    engine.getSegHandler().classifySegment(seg, screenX1, screenX2, rwAngle1);
+                }
             }
         }
     }
 
     /**
-     * Enhanced visibility test using geometry classes.
+     * Enhanced visibility test using geometry classes, based on original BSP logic.
      */
     private boolean isSegmentVisible(Seg seg, Point2D playerPos, Angle playerAngle) {
-        // Quick distance check
         Point2D segStart = new Point2D(seg.startVertex.x, seg.startVertex.y);
         Point2D segEnd = new Point2D(seg.endVertex.x, seg.endVertex.y);
         
+        // Calculate angles to segment endpoints (similar to original pointToAngle)
+        Vector2D toStart = playerPos.vectorTo(segStart);
+        Vector2D toEnd = playerPos.vectorTo(segEnd);
+        
+        Angle angle1 = toStart.angle();
+        Angle angle2 = toEnd.angle();
+        
+        // Calculate span (similar to original logic)
+        double span = angle1.subtract(angle2).normalizeTo360().degrees();
+        
+        // Backface culling - if span >= 180, segment is facing away
+        if (span >= 180.0) {
+            return false;
+        }
+        
+        // Quick distance check
         double distanceToStart = playerPos.distanceTo(segStart);
         double distanceToEnd = playerPos.distanceTo(segEnd);
         
@@ -145,22 +158,93 @@ public class GeometricBSP implements CollisionService {
         if (distanceToStart > maxRenderDistance && distanceToEnd > maxRenderDistance) {
             return false;
         }
-
-        // Use DoomGeometryUtils for comprehensive visibility check
-        return DoomGeometryUtils.isWallPotentiallyVisible(seg, playerPos, playerAngle, fieldOfView);
+        
+        return true;
     }
 
     /**
-     * Projects a segment to screen space using the geometry classes.
+     * Original BSP-style segment projection logic using geometry classes.
+     * Returns: {x1, x2, raw_world_angle1} or null
      */
-    private Projection.ScreenSegment projectSegmentToScreen(Seg seg, Point2D playerPos, Angle playerAngle) {
-        LineSegment2D segment = DoomGeometryUtils.segToLineSegment(seg);
+    private double[] addSegmentToFov(Seg seg, Point2D playerPos, Angle playerAngle) {
+        Point2D vertex1 = new Point2D(seg.startVertex.x, seg.startVertex.y);
+        Point2D vertex2 = new Point2D(seg.endVertex.x, seg.endVertex.y);
         
-        // For now, assume floor and ceiling heights (these would come from sectors)
-        double floorHeight = 0;
-        double ceilHeight = 128;
+        // Calculate angles to vertices (similar to original pointToAngle)
+        Vector2D toVertex1 = playerPos.vectorTo(vertex1);
+        Vector2D toVertex2 = playerPos.vectorTo(vertex2);
         
-        return projection.projectSegmentToScreen(segment, floorHeight, ceilHeight, playerPos, playerAngle);
+        Angle angle1 = toVertex1.angle(); // World angle to vertex1
+        Angle angle2 = toVertex2.angle(); // World angle to vertex2
+        
+        double span = angle1.subtract(angle2).normalizeTo360().degrees();
+        
+        // Backface culling
+        if (span >= 180.0) {
+            return null; // Segment is facing away or edge-on
+        }
+        
+        double rwAngle1 = angle1.degrees(); // Store raw world angle for later use by SegHandler
+        
+        // Clip to FOV
+        double pAngle = playerAngle.degrees();
+        double tAngle1 = normalizeAngle360(angle1.degrees() - pAngle); // Angle of v1 relative to player's view direction
+        double tAngle2 = normalizeAngle360(angle2.degrees() - pAngle); // Angle of v2 relative to player's view direction
+        
+        double r1 = normalizeAngle180(tAngle1);
+        double r2 = normalizeAngle180(tAngle2);
+        
+        // Check if segment is completely outside FOV
+        double halfFOV = fieldOfView.degrees() / 2.0;
+        if ((r1 > halfFOV && r2 > halfFOV) || (r1 < -halfFOV && r2 < -halfFOV)) {
+            return null;
+        }
+        
+        // Clip angles to FOV bounds
+        if (r1 > halfFOV) r1 = halfFOV;
+        if (r1 < -halfFOV) r1 = -halfFOV;
+        if (r2 > halfFOV) r2 = halfFOV;
+        if (r2 < -halfFOV) r2 = -halfFOV;
+        
+        // Convert angles to screen coordinates
+        double x1 = angleToScreen(r1);
+        double x2 = angleToScreen(r2);
+        
+        // Ensure x1 < x2
+        if (x1 > x2) {
+            double temp = x1;
+            x1 = x2;
+            x2 = temp;
+        }
+        
+        return new double[]{x1, x2, rwAngle1};
+    }
+    
+    /**
+     * Convert angle to screen coordinate (similar to original BSP logic).
+     */
+    private double angleToScreen(double angle) {
+        return Constants.H_WIDTH - Math.tan(Math.toRadians(angle)) * Constants.SCREEN_DIST;
+    }
+    
+    /**
+     * Normalize angle to [0, 360) range.
+     */
+    private double normalizeAngle360(double angle) {
+        angle %= 360.0;
+        if (angle < 0) angle += 360.0;
+        return angle;
+    }
+    
+    /**
+     * Normalize angle to [-180, 180) range.
+     */
+    private double normalizeAngle180(double angle) {
+        angle = normalizeAngle360(angle);
+        if (angle > 180.0) {
+            angle -= 360.0;
+        }
+        return angle;
     }
 
     /**
