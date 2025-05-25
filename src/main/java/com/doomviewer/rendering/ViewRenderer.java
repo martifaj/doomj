@@ -1,6 +1,7 @@
 package com.doomviewer.rendering;
 
 import com.doomviewer.misc.Constants;
+import com.doomviewer.geometry.*;
 import com.doomviewer.game.Player;
 import com.doomviewer.game.objects.MapObject;
 import com.doomviewer.game.DoomEngine;
@@ -118,17 +119,23 @@ public class ViewRenderer {
 
         if (textureId.equals(this.skyId)) {
             // Sky rendering uses its own texture and parameters
-            // tex_column = 2.2 * (self.player.angle + self.engine.seg_handler.x_to_angle[x])
-            // xToAngleTable[x] IS self.engine.seg_handler.x_to_angle[x]
-            double skyTexColumn = 2.2 * (player.angle + screenColumnAngle); // player.angle should be in degrees
+            // Enhanced sky rendering using geometry classes
+            Angle playerAngle = Angle.degrees(player.angle);
+            Angle screenAngle = Angle.degrees(screenColumnAngle);
+            Angle totalAngle = playerAngle.add(screenAngle);
+            double skyTexColumn = 2.2 * totalAngle.degrees();
             drawWallColumn(framebuffer, engine.getDepthBuffer(), this.skyTexture, skyTexColumn, x, y1, y2,
                     this.skyTextureAltitude, this.skyInvScale, 1.0, Double.MAX_VALUE); // Sky is full bright and infinitely far
         } else {
             if (!textures.containsKey(textureId)) return;
             int[][] flatTexture = textures.get(textureId); // Flat textures are 64x64
+            // Enhanced flat rendering using geometry classes
+            Point2D playerPos = new Point2D(this.player.pos.x, this.player.pos.y);
+            Angle playerAngle = Angle.degrees(this.player.angle);
+            Angle screenAngle = Angle.degrees(screenColumnAngle);
             drawFlatColumn(framebuffer, flatTexture, x, y1, y2, lightLevel, worldZ, // worldZ is now absolute plane Z
                     this.player.getEyeLevelViewZ(), // Correctly use player's world eye Z
-                    this.player.angle, this.player.pos.x, this.player.pos.y, screenColumnAngle);
+                    playerAngle, playerPos, screenAngle);
         }
     }
 
@@ -169,16 +176,17 @@ public class ViewRenderer {
             BufferedImage spriteImg = assetData.sprites.get(obj.currentSpriteLumpName);
             if (spriteImg == null) continue;
             
-            // Transform to camera space
-            double dx = obj.pos.x - player.pos.x;
-            double dy = obj.pos.y - player.pos.y;
+            // Enhanced camera space transformation using geometry classes
+            Point2D objPos = new Point2D(obj.pos.x, obj.pos.y);
+            Point2D playerPos = new Point2D(player.pos.x, player.pos.y);
+            Vector2D objToPlayer = playerPos.vectorTo(objPos);
             
-            double playerAngleRad = Math.toRadians(player.angle);
-            double cosPlayerAngle = Math.cos(playerAngleRad);
-            double sinPlayerAngle = Math.sin(playerAngleRad);
+            Angle playerAngle = Angle.degrees(player.angle);
+            Transform2D cameraTransform = Transform2D.rotation(playerAngle.negate());
+            Vector2D camSpaceVector = cameraTransform.transform(objToPlayer);
             
-            double camSpaceX = dx * -sinPlayerAngle + dy * cosPlayerAngle;
-            double camSpaceZ_Depth = dx * cosPlayerAngle + dy * sinPlayerAngle;
+            double camSpaceX = camSpaceVector.x;
+            double camSpaceZ_Depth = camSpaceVector.y;
             
             if (camSpaceZ_Depth <= 0.5) continue; // Behind camera or too close
             
@@ -299,22 +307,17 @@ public class ViewRenderer {
             double objWorldY = obj.pos.y;
             double objWorldZBase = obj.z; // Z of the sprite's base (feet)
 
-            // Transform to camera space
-            double dx = objWorldX - player.pos.x;
-            double dy = objWorldY - player.pos.y;
-
-            double playerAngleRad = Math.toRadians(player.angle);
-            double cosPlayerAngle = Math.cos(playerAngleRad);
-            double sinPlayerAngle = Math.sin(playerAngleRad);
-
-            // Rotate opposite to player's angle to bring into view space
-            // tx: horizontal offset from view center line, ty: depth
-            double tx = dx * cosPlayerAngle + dy * sinPlayerAngle; // This is depth in player's X direction
-            double ty = dx * -sinPlayerAngle + dy * cosPlayerAngle; // This is horizontal offset in player's Y direction
-            // Standard Doom projection: ty is depth, tx is side.
-            // Let's use ty for depth, tx for horizontal.
-            double camSpaceX = dx * -sinPlayerAngle + dy * cosPlayerAngle; // Perpendicular to view dir (screen X)
-            double camSpaceZ_Depth = dx * cosPlayerAngle + dy * sinPlayerAngle; // Along view dir (depth)
+            // Enhanced camera space transformation using geometry classes (deprecated method)
+            Point2D objWorldPos = new Point2D(objWorldX, objWorldY);
+            Point2D playerPos = new Point2D(player.pos.x, player.pos.y);
+            Vector2D objToPlayer = playerPos.vectorTo(objWorldPos);
+            
+            Angle playerAngle = Angle.degrees(player.angle);
+            Transform2D cameraTransform = Transform2D.rotation(playerAngle.negate());
+            Vector2D camSpaceVector = cameraTransform.transform(objToPlayer);
+            
+            double camSpaceX = camSpaceVector.x; // Perpendicular to view dir (screen X)
+            double camSpaceZ_Depth = camSpaceVector.y; // Along view dir (depth)
 
 
             if (camSpaceZ_Depth <= 0.5) continue; // Clip behind or too close (near plane)
@@ -426,30 +429,24 @@ public class ViewRenderer {
     public static void drawFlatColumn(int[] framebuffer, int[][] flatTexture,
                                       int x, int y1, int y2, double lightLevel,
                                       double planeZWorld, double playerEyeZWorld,
-                                      double playerAngleDeg, double playerX, double playerY,
-                                      double screenColumnAngleDeg) {
+                                      Angle playerAngle, Point2D playerPos,
+                                      Angle screenColumnAngle) {
 
         // Z-coordinate of the plane relative to the player's eye.
         // Positive if plane is "above" player's eye Z, negative if "below".
         double planeZRelativeToEye = planeZWorld - playerEyeZWorld;
 
-        // Player's orientation in radians
-        double playerAngleRad = Math.toRadians(playerAngleDeg);
+        // Enhanced angle calculations using geometry classes
+        Angle worldRayAngle = playerAngle.add(screenColumnAngle);
 
-        // Angle of the current ray (for screen column x) relative to player's forward direction
-        double rayHorizontalOffsetAngleRad = Math.toRadians(screenColumnAngleDeg);
-
-        // Absolute world angle of the current ray's projection on the XY plane
-        double worldRayAngleRad = playerAngleRad + rayHorizontalOffsetAngleRad;
-
-        // Pre-calculate components that depend only on the ray's horizontal angle
-        double cosRayHorizontalOffsetAngle = Math.cos(rayHorizontalOffsetAngleRad);
+        // Pre-calculate components using geometry classes
+        double cosRayHorizontalOffsetAngle = screenColumnAngle.cos();
         // Avoid division by zero if ray is exactly perpendicular to view axis (e.g., FOV approaching 180 deg)
         if (Math.abs(cosRayHorizontalOffsetAngle) < 1e-9) { // 1e-9 is a small epsilon
             return;
         }
-        double cosWorldRayAngle = Math.cos(worldRayAngleRad);
-        double sinWorldRayAngle = Math.sin(worldRayAngleRad);
+        double cosWorldRayAngle = worldRayAngle.cos();
+        double sinWorldRayAngle = worldRayAngle.sin();
 
         for (int y = y1; y <= y2; y++) {
             // Boundary checks for screen coordinates
@@ -486,9 +483,11 @@ public class ViewRenderer {
             // This accounts for rays not being parallel to the view axis (i.e., for pixels not at screen center x).
             double true_dist_along_ray = z_on_view_axis / cosRayHorizontalOffsetAngle;
 
-            // World coordinates of the intersection point on the plane
-            double world_hit_x = playerX + true_dist_along_ray * cosWorldRayAngle;
-            double world_hit_y = playerY + true_dist_along_ray * sinWorldRayAngle;
+            // World coordinates of the intersection point on the plane using geometry classes
+            Vector2D rayDirection = Vector2D.fromAngle(worldRayAngle);
+            Point2D worldHitPoint = playerPos.add(rayDirection.multiply(true_dist_along_ray));
+            double world_hit_x = worldHitPoint.x;
+            double world_hit_y = worldHitPoint.y;
 
             // Texture mapping: get texture coordinates from world coordinates.
             // Assumes texture is aligned with world axes and repeats.
