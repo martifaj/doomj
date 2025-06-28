@@ -101,6 +101,8 @@ public class DoomEngine extends JPanel implements Runnable, GameEngineTmp {
         // Create door manager (no dependencies on engine)
         doorManager = new DoorManager(wadDataService, collisionService);
 
+        bsp.setDoorService(doorManager);
+
         // Create shared GameDefinitions instance
         GameDefinitions gameDefinitions = new GameDefinitions();
 

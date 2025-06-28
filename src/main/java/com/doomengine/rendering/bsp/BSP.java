@@ -5,6 +5,7 @@ import com.doomengine.game.Player;
 import com.doomengine.misc.Constants;
 import com.doomengine.geometry.*;
 import com.doomengine.services.CollisionService;
+import com.doomengine.services.DoorService;
 import com.doomengine.wad.datatypes.Node;
 import com.doomengine.wad.datatypes.Sector;
 import com.doomengine.wad.datatypes.Seg;
@@ -32,6 +33,11 @@ public class BSP implements CollisionService {
     private final Projection projection;
     private final Angle fieldOfView;
     public boolean isTraverseBsp;
+    private DoorService doorService; // To be injected
+
+    public void setDoorService(DoorService doorService) {
+        this.doorService = doorService;
+    }
 
     public BSP(DoomEngine engine) {
         this.engine = engine;
@@ -317,8 +323,10 @@ public class BSP implements CollisionService {
         for (Seg seg : segs) {
             if (seg.linedef == null) continue;
             
-            // Skip two-sided lines (portals) for basic collision
-            if (seg.linedef.backSidedef != null) continue;
+            // Only skip two-sided lines if they are actually passable (doors open, etc)
+            if (seg.linedef.backSidedef != null && doorService != null && !doorService.isDoorBlocking(seg.linedefId)) {
+                continue; // This is an open door or portal, so we can pass through
+            }
             
             LineSegment2D wall = DoomGeometryUtils.segToLineSegment(seg);
             double distance = wall.distanceToPoint(newPos);
@@ -341,8 +349,10 @@ public class BSP implements CollisionService {
         for (Seg seg : segs) {
             if (seg.linedef == null) continue;
             
-            // Skip two-sided lines (portals) for line of sight
-            if (seg.linedef.backSidedef != null) continue;
+            // Only skip two-sided lines if they are actually passable (doors open, etc)
+            if (seg.linedef.backSidedef != null && doorService != null && !doorService.isDoorBlocking(seg.linedefId)) {
+                continue; // This is an open door or portal, so line of sight can pass through
+            }
             
             LineSegment2D wall = DoomGeometryUtils.segToLineSegment(seg);
             if (sightLine.intersectsWith(wall)) {
@@ -518,8 +528,8 @@ public class BSP implements CollisionService {
             return false;
         }
         
-        // Check collision with walls
-        return !isMovementBlocked(point, point, radius, false);
+        // Check collision with walls - position is valid if NO collision
+        return !checkCollision(point.x(), point.y(), radius);
     }
     
     @Override

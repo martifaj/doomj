@@ -232,6 +232,12 @@ public class DoorManager implements DoorService {
         return linedefToDoor.containsKey(linedefId);
     }
 
+    @Override
+    public boolean isDoorBlocking(int linedefId) {
+        Door door = linedefToDoor.get(linedefId);
+        return door != null && door.isBlocking();
+    }
+
     /**
      * Check if two linedefs form a paired door (share endpoints)
      */
