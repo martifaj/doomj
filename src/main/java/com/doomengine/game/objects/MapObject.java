@@ -141,13 +141,6 @@ public abstract class MapObject {
                 currentStateDef.action.execute(this, objectManager, player, audioService, engineTmp, collisionService);
             }
             setState(currentStateDef.nextState);
-        } else if (currentStateDef.action != null) {
-            // Only execute continuous actions for living objects, or specific corpse-related actions
-            if ((health > 0 && (A_CHASE.equals(currentStateDef.action) || A_LOOK.equals(currentStateDef.action)))
-                    || (currentStateDef.action.equals(A_FALL) && (flags & MobjFlags.MF_CORPSE) != 0)) // Example: let A_Fall re-run if needed, though its effect is mostly one-shot
-            {
-                currentStateDef.action.execute(this, objectManager, player, audioService, engineTmp, collisionService);
-            }
         }
 
         // Update AI for living enemies only (this part should skip for corpses)
@@ -212,6 +205,7 @@ public abstract class MapObject {
             if (patch != null) {
                 this.spriteXOffset = patch.header.leftOffset; // Original engine uses this
                 this.spriteYOffset = patch.header.topOffset;  // Original engine uses this
+                this.renderHeight = patch.header.height;
             } else {
                 this.spriteXOffset = 0; // Fallback
                 this.spriteYOffset = 0; // Fallback
